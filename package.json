@@ -1,5 +1,5 @@
 {
-  "name": "lunette-mobile",
+  "name": "noise synth",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
@@ -8,15 +8,24 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "login": "npx eas-cli login",
+    "build:dev:android": "npx eas-cli build --platform android --profile development",
+    "build:dev:ios": "npx eas-cli build --platform ios --profile development",
+    "build:production:android": "npx eas-cli build --platform android",
+    "build:production:ios": "npx eas-cli build --platform ios",
+    "submit:android": "npx eas submit --platform android --profile production --latest --non-interactive",
+    "submit:ios": "npx eas submit --platform ios"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
+    "decode-uri-component": "file:vendor/decode-uri-component",
     "expo": "^57.0.22",
     "expo-constants": "~57.0.18",
+    "expo-dev-client": "~57.0.19",
     "expo-font": "~57.0.4",
     "expo-haptics": "~57.0.3",
     "expo-image": "~57.0.5",
@@ -61,7 +70,7 @@
     "plist": {
       "@xmldom/xmldom": "0.9.12"
     },
-    "decode-uri-component": "file:vendor/decode-uri-component",
+    "decode-uri-component": "$decode-uri-component",
     "uuid": "11.1.1"
   },
   "private": true

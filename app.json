@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Noise synth",
-    "slug": "Noise-mobile",
+    "slug": "noise-synth",
     "version": "1.0.0",
     "orientation": "landscape",
     "icon": "./assets/images/icon.png",
@@ -52,7 +52,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "026e0398-52ba-4d42-8d8f-fc52eaa278e7"
+        "projectId": "182047b0-6488-483a-946b-a71fb426da01"
       }
     }
   }
