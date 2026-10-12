@@ -13,21 +13,23 @@ import { WebView } from "react-native-webview";
 
 const ENGINE_HTML = createEngineHtml();
 
-export type AudioEngineParams = {
-  bands: number[];
-  volume: number;
-  shift: number;
-  stereo: boolean;
+type BowNoteCall = {
+  frequency: number;
+  duration: number;
 };
 
 type EngineHost = Window & {
   resumeAudio?: () => void;
-  setEngineState?: (params: AudioEngineParams) => void;
+  bowNote?: (frequency: number, duration: number) => void;
+  noteOn?: (noteId: number, frequency: number) => void;
+  noteOff?: (noteId: number) => void;
 };
 
 type AudioEngineValue = {
   resume: () => void;
-  setParams: (params: AudioEngineParams) => void;
+  bowNote: (frequency: number, duration: number) => void;
+  noteOn: (noteId: number, frequency: number) => void;
+  noteOff: (noteId: number) => void;
 };
 
 const AudioEngineContext = createContext<AudioEngineValue | null>(null);
@@ -49,6 +51,18 @@ function ensureWebEngine() {
   document.head.appendChild(script);
 }
 
+function noteCall(frequency: number, duration: number): BowNoteCall {
+  return {
+    frequency: Number.isFinite(frequency) ? frequency : 293.66,
+    duration: Number.isFinite(duration) ? duration : 1.5,
+  };
+}
+
+function finiteNumber(value: number): number | null {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : null;
+}
+
 export function useAudioEngine() {
   const value = useContext(AudioEngineContext);
   if (!value) {
@@ -67,17 +81,38 @@ export default function AudioEngineProvider({
 }: AudioEngineProviderProps) {
   const webViewRef = useRef<WebView>(null);
   const readyRef = useRef(false);
-  const paramsRef = useRef<AudioEngineParams | null>(null);
+  const notesRef = useRef<BowNoteCall[]>([]);
+  const heldRef = useRef(new Map<number, number>());
 
-  const publish = useCallback((params: AudioEngineParams) => {
+  const publishNote = useCallback((frequency: number, duration: number) => {
     if (Platform.OS === "web") {
-      webEngine().setEngineState?.(params);
+      webEngine().bowNote?.(frequency, duration);
       return;
     }
 
     webViewRef.current?.injectJavaScript(
-      `window.setEngineState(${JSON.stringify(params)}); true;`,
+      `window.bowNote(${frequency}, ${duration}); true;`,
     );
+  }, []);
+
+  const publishNoteOn = useCallback((noteId: number, frequency: number) => {
+    if (Platform.OS === "web") {
+      webEngine().noteOn?.(noteId, frequency);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.noteOn(${noteId}, ${frequency}); true;`,
+    );
+  }, []);
+
+  const publishNoteOff = useCallback((noteId: number) => {
+    if (Platform.OS === "web") {
+      webEngine().noteOff?.(noteId);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(`window.noteOff(${noteId}); true;`);
   }, []);
 
   const resume = useCallback(() => {
@@ -89,28 +124,78 @@ export default function AudioEngineProvider({
     webViewRef.current?.injectJavaScript("window.resumeAudio(); true;");
   }, []);
 
-  const setParams = useCallback(
-    (params: AudioEngineParams) => {
-      paramsRef.current = params;
+  const bowNote = useCallback(
+    (frequency: number, duration: number) => {
+      const note = noteCall(frequency, duration);
       if (!readyRef.current) {
+        notesRef.current.push(note);
         return;
       }
 
-      publish(params);
+      publishNote(note.frequency, note.duration);
     },
-    [publish],
+    [publishNote],
   );
 
-  const handleLoadEnd = useCallback(() => {
-    readyRef.current = true;
-    const params = paramsRef.current;
-    if (params) {
-      publish(params);
+  const noteOn = useCallback(
+    (noteId: number, frequency: number) => {
+      const id = finiteNumber(noteId);
+      const freq = finiteNumber(frequency);
+      if (id == null || freq == null) {
+        return;
+      }
+
+      const midi = Math.round(id);
+      if (!readyRef.current) {
+        heldRef.current.set(midi, freq);
+        return;
+      }
+
+      publishNoteOn(midi, freq);
+    },
+    [publishNoteOn],
+  );
+
+  const noteOff = useCallback(
+    (noteId: number) => {
+      const id = finiteNumber(noteId);
+      if (id == null) {
+        return;
+      }
+
+      const midi = Math.round(id);
+      if (!readyRef.current) {
+        heldRef.current.delete(midi);
+        return;
+      }
+
+      publishNoteOff(midi);
+    },
+    [publishNoteOff],
+  );
+
+  const flushNotes = useCallback(() => {
+    const notes = notesRef.current.splice(0);
+    const held = Array.from(heldRef.current.entries());
+    heldRef.current.clear();
+    const note = notes[notes.length - 1];
+    if (!note && held.length === 0) {
+      resume();
       return;
     }
 
-    resume();
-  }, [publish, resume]);
+    if (note) {
+      publishNote(note.frequency, note.duration);
+    }
+    for (const [noteId, frequency] of held) {
+      publishNoteOn(noteId, frequency);
+    }
+  }, [publishNote, publishNoteOn, resume]);
+
+  const handleLoadEnd = useCallback(() => {
+    readyRef.current = true;
+    flushNotes();
+  }, [flushNotes]);
 
   useEffect(() => {
     if (Platform.OS !== "web") {
@@ -119,12 +204,7 @@ export default function AudioEngineProvider({
 
     ensureWebEngine();
     readyRef.current = true;
-    const params = paramsRef.current;
-    if (params) {
-      publish(params);
-    } else {
-      resume();
-    }
+    flushNotes();
 
     const unlock = () => {
       webEngine().resumeAudio?.();
@@ -133,11 +213,11 @@ export default function AudioEngineProvider({
     return () => {
       window.removeEventListener("pointerdown", unlock, true);
     };
-  }, [publish, resume]);
+  }, [flushNotes]);
 
   const value = useMemo(
-    () => ({ resume, setParams }),
-    [resume, setParams],
+    () => ({ resume, bowNote, noteOn, noteOff }),
+    [resume, bowNote, noteOn, noteOff],
   );
 
   return (

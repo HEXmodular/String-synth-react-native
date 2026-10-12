@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Noise synth",
-    "slug": "noise-synth",
+    "name": "String synth",
+    "slug": "string-synth",
     "version": "1.0.0",
     "orientation": "landscape",
     "icon": "./assets/images/icon.png",
-    "scheme": "noise",
+    "scheme": "string",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#081126",
     "ios": {
@@ -20,7 +20,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.ejji.Noise"
+      "package": "com.ejji.String"
     },
     "web": {
       "output": "static",

@@ -1,40 +1,31 @@
-import {
-  EQ_BAND_HZ,
-  EQ_MAX_DB,
-  EQ_MIN_DB,
-} from "@/components/graphic-equalizer/constants";
-
-const NOISE_TRIM = 0.2;
+import { bowedStringProcessorSource } from "@/audio/bowedStringProcessor";
 
 export function createEngineScript() {
+  const processorSource = JSON.stringify(bowedStringProcessorSource);
+
   return `
 (function () {
   var AudioCtx = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtx) {
     window.resumeAudio = function () {};
-    window.setEngineState = function () {};
+    window.bowNote = function () {};
+    window.noteOn = function () {};
+    window.noteOff = function () {};
     return;
   }
 
-  var BASE_HZ = ${JSON.stringify(EQ_BAND_HZ)};
-  var MIN_DB = ${EQ_MIN_DB};
-  var MAX_DB = ${EQ_MAX_DB};
-  var OCTAVE_Q = Math.SQRT2;
   var audioCtx;
   try {
     audioCtx = new AudioCtx({ latencyHint: "interactive" });
   } catch (error) {
     audioCtx = new AudioCtx();
   }
-  var monoGain = audioCtx.createGain();
-  var stereoGain = audioCtx.createGain();
-  var trim = audioCtx.createGain();
-  var masterGain = audioCtx.createGain();
 
-  monoGain.gain.value = 1;
-  stereoGain.gain.value = 0;
-  trim.gain.value = ${NOISE_TRIM};
-  masterGain.gain.value = 0;
+  var MAX_VOICES = 16;
+  var mixer = null;
+  var voices = [];
+  var ready = false;
+  var pending = [];
 
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
@@ -45,106 +36,207 @@ export function createEngineScript() {
     return Number.isFinite(next) ? next : fallback;
   }
 
-  function approach(param, value, now, seconds) {
-    param.cancelScheduledValues(now);
-    param.setValueAtTime(param.value, now);
-    param.setTargetAtTime(value, now, seconds);
-  }
-
-  function createNoiseBuffer(independent) {
-    var length = Math.floor(audioCtx.sampleRate * 2);
-    var buffer = audioCtx.createBuffer(2, length, audioCtx.sampleRate);
-    var left = buffer.getChannelData(0);
-    var right = buffer.getChannelData(1);
-    for (var i = 0; i < length; i += 1) {
-      var sample = Math.random() * 2 - 1;
-      left[i] = sample;
-      right[i] = independent ? Math.random() * 2 - 1 : sample;
-    }
-    return buffer;
-  }
-
-  function startNoise(buffer, destination) {
-    var source = audioCtx.createBufferSource();
-    source.buffer = buffer;
-    source.loop = true;
-    source.connect(destination);
-    source.start();
-  }
-
-  var filters = BASE_HZ.map(function (hz) {
-    var filter = audioCtx.createBiquadFilter();
-    filter.type = "peaking";
-    filter.frequency.value = hz;
-    filter.Q.value = OCTAVE_Q;
-    filter.gain.value = 0;
-    return filter;
-  });
-
-  monoGain.connect(filters[0]);
-  stereoGain.connect(filters[0]);
-  for (var band = 0; band < filters.length - 1; band += 1) {
-    filters[band].connect(filters[band + 1]);
-  }
-  filters[filters.length - 1].connect(trim);
-  trim.connect(masterGain);
-  masterGain.connect(audioCtx.destination);
-
-  startNoise(createNoiseBuffer(false), monoGain);
-  startNoise(createNoiseBuffer(true), stereoGain);
-
-  function bandFrequency(baseHz, shift) {
-    var nyquist = audioCtx.sampleRate * 0.5;
-    return clamp(baseHz * Math.pow(2, shift), 1, nyquist - 1);
-  }
-
   function resume() {
-    var pending = audioCtx.resume();
-    if (pending && pending.catch) {
-      pending.catch(function () {});
+    var pendingResume = audioCtx.resume();
+    if (pendingResume && pendingResume.catch) {
+      pendingResume.catch(function () {});
     }
+  }
+
+  function createVoice() {
+    var stringNode = new AudioWorkletNode(audioCtx, "bowed-string-processor");
+    var amp = audioCtx.createGain();
+    var now = audioCtx.currentTime;
+    amp.gain.setValueAtTime(0, now);
+    var velocity = stringNode.parameters.get("bowVelocity");
+    velocity.setValueAtTime(0, now);
+    stringNode.connect(amp);
+    amp.connect(mixer);
+    return {
+      frequency: stringNode.parameters.get("frequency"),
+      force: stringNode.parameters.get("bowForce"),
+      velocity: velocity,
+      amp: amp,
+      noteId: null,
+      active: false,
+      startedAt: 0,
+    };
+  }
+
+  function findActive(noteId) {
+    for (var i = 0; i < voices.length; i++) {
+      if (voices[i].active && voices[i].noteId === noteId) {
+        return voices[i];
+      }
+    }
+    return null;
+  }
+
+  function releaseVoice(voice) {
+    var now = audioCtx.currentTime;
+    voice.velocity.cancelScheduledValues(now);
+    voice.amp.gain.cancelScheduledValues(now);
+    voice.velocity.setValueAtTime(voice.velocity.value || 0, now);
+    voice.velocity.linearRampToValueAtTime(0, now + 0.1);
+
+    var gainNow = voice.amp.gain.value;
+    if (!(gainNow > 0.001)) {
+      voice.amp.gain.setValueAtTime(0.001, now);
+      return;
+    }
+
+    voice.amp.gain.setValueAtTime(gainNow, now);
+    voice.amp.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+  }
+
+  function allocVoice() {
+    for (var i = 0; i < voices.length; i++) {
+      if (!voices[i].active) {
+        return voices[i];
+      }
+    }
+
+    if (voices.length < MAX_VOICES) {
+      var created = createVoice();
+      voices.push(created);
+      return created;
+    }
+
+    var oldest = voices[0];
+    for (var j = 1; j < voices.length; j++) {
+      if (voices[j].startedAt < oldest.startedAt) {
+        oldest = voices[j];
+      }
+    }
+
+    releaseVoice(oldest);
+    oldest.active = false;
+    oldest.noteId = null;
+    return oldest;
+  }
+
+  function attackVoice(voice, noteId, frequency) {
+    var now = audioCtx.currentTime;
+    var freq = clamp(finite(frequency, 293.66), 20, 5000);
+    voice.noteId = noteId;
+    voice.active = true;
+    voice.startedAt = now;
+
+    voice.frequency.cancelScheduledValues(now);
+    voice.force.cancelScheduledValues(now);
+    voice.velocity.cancelScheduledValues(now);
+    voice.amp.gain.cancelScheduledValues(now);
+
+    voice.frequency.setValueAtTime(freq, now);
+    voice.force.setValueAtTime(1, now);
+    voice.velocity.setValueAtTime(0, now);
+    voice.velocity.linearRampToValueAtTime(0.18, now + 0.08);
+    voice.amp.gain.setValueAtTime(0, now);
+    voice.amp.gain.linearRampToValueAtTime(0.22, now + 0.05);
   }
 
   window.resumeAudio = resume;
 
-  window.setEngineState = function (state) {
-    if (!state) {
-      resume();
+  window.noteOn = function (noteId, frequency) {
+    resume();
+    if (!ready) {
+      pending.push({ type: "on", noteId: noteId, frequency: frequency });
       return;
     }
 
-    var now = audioCtx.currentTime;
-    var shift = clamp(finite(state.shift, 0), -1, 1);
-    var bands = Array.isArray(state.bands) ? state.bands : [];
-
-    for (var i = 0; i < filters.length; i += 1) {
-      approach(
-        filters[i].gain,
-        clamp(finite(bands[i], 0), MIN_DB, MAX_DB),
-        now,
-        0.015,
-      );
-      approach(
-        filters[i].frequency,
-        bandFrequency(BASE_HZ[i], shift),
-        now,
-        0.02,
-      );
+    var id = Math.round(finite(noteId, 0));
+    var voice = findActive(id);
+    if (!voice) {
+      voice = allocVoice();
     }
-
-    var volume = clamp(finite(state.volume, 0), 0, 1);
-    if (volume <= 0.0001) {
-      masterGain.gain.cancelScheduledValues(now);
-      masterGain.gain.setValueAtTime(0, now);
-    } else {
-      approach(masterGain.gain, volume, now, 0.015);
-    }
-
-    var stereo = !!state.stereo;
-    approach(monoGain.gain, stereo ? 0 : 1, now, 0.03);
-    approach(stereoGain.gain, stereo ? 1 : 0, now, 0.03);
-    resume();
+    attackVoice(voice, id, frequency);
   };
+
+  window.noteOff = function (noteId) {
+    if (!ready) {
+      pending.push({ type: "off", noteId: noteId });
+      return;
+    }
+
+    var voice = findActive(Math.round(finite(noteId, 0)));
+    if (!voice) {
+      return;
+    }
+
+    releaseVoice(voice);
+    voice.active = false;
+    voice.noteId = null;
+  };
+
+  window.bowNote = function (frequency, duration) {
+    var dur = finite(duration, 1.5);
+    if (dur < 0.16) dur = 0.16;
+    if (!ready) {
+      pending.push({ type: "bow", frequency: frequency, duration: dur });
+      return;
+    }
+
+    window.noteOn(-1, frequency);
+    setTimeout(function () {
+      window.noteOff(-1);
+    }, dur * 1000);
+  };
+
+  function flushPending() {
+    var commands = pending;
+    pending = [];
+    for (var i = 0; i < commands.length; i++) {
+      var command = commands[i];
+      if (command.type === "on") {
+        window.noteOn(command.noteId, command.frequency);
+      } else if (command.type === "off") {
+        window.noteOff(command.noteId);
+      } else {
+        window.bowNote(command.frequency, command.duration);
+      }
+    }
+  }
+
+  function init() {
+    if (!audioCtx.audioWorklet) {
+      return Promise.reject(new Error("AudioWorklet is unavailable"));
+    }
+
+    var url = URL.createObjectURL(
+      new Blob([${processorSource}], { type: "application/javascript" }),
+    );
+
+    return audioCtx.audioWorklet.addModule(url).then(function () {
+      URL.revokeObjectURL(url);
+
+      mixer = audioCtx.createGain();
+      var bodyFilter = audioCtx.createBiquadFilter();
+      bodyFilter.type = "bandpass";
+      bodyFilter.frequency.value = 1200;
+      bodyFilter.Q.value = 1.0;
+
+      var master = audioCtx.createGain();
+      master.gain.setValueAtTime(1, audioCtx.currentTime);
+      mixer.connect(bodyFilter);
+      bodyFilter.connect(master);
+      master.connect(audioCtx.destination);
+
+      ready = true;
+      flushPending();
+    }).catch(function (error) {
+      URL.revokeObjectURL(url);
+      throw error;
+    });
+  }
+
+  init().catch(function (error) {
+    if (!ready) {
+      console.error(error);
+      window.bowNote = function () {};
+      window.noteOn = function () {};
+      window.noteOff = function () {};
+    }
+  });
 
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible") {
