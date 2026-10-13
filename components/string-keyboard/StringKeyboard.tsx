@@ -13,9 +13,11 @@ import {
 } from "@/components/string-keyboard/notes";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Platform,
   Text,
   View,
   useWindowDimensions,
+  type GestureResponderEvent,
   type LayoutChangeEvent,
   type PointerEvent,
 } from "react-native";
@@ -207,6 +209,28 @@ export default function StringKeyboard({
     [syncFromPointers],
   );
 
+  const syncTouches = useCallback(
+    (event: GestureResponderEvent) => {
+      const pointers = pointersRef.current;
+      const touches = event.nativeEvent.touches;
+      pointers.clear();
+      if (touches) {
+        for (const touch of touches) {
+          if (!Number.isFinite(touch.locationX) || !Number.isFinite(touch.locationY)) {
+            continue;
+          }
+          const touchId = Number(touch.identifier);
+          if (!Number.isFinite(touchId)) {
+            continue;
+          }
+          pointers.set(touchId, { x: touch.locationX, y: touch.locationY });
+        }
+      }
+      syncFromPointers();
+    },
+    [syncFromPointers],
+  );
+
   const handleStageLayout = useCallback((event: LayoutChangeEvent) => {
     const width = Math.floor(event.nativeEvent.layout.width);
     const height = Math.floor(event.nativeEvent.layout.height);
@@ -222,6 +246,25 @@ export default function StringKeyboard({
   const gridWidth = columns > 0 ? columns * cellSize + (columns - 1) * KEY_GAP : 0;
   const gridHeight =
     cellSize > 0 ? KEYBOARD_ROW_COUNT * cellSize + (KEYBOARD_ROW_COUNT - 1) * KEY_GAP : 0;
+  const gridTouchProps =
+    Platform.OS === "android"
+      ? {
+          onStartShouldSetResponder: () => true,
+          onMoveShouldSetResponder: () => true,
+          onResponderTerminationRequest: () => false,
+          onResponderGrant: syncTouches,
+          onResponderStart: syncTouches,
+          onResponderMove: syncTouches,
+          onResponderEnd: syncTouches,
+          onResponderRelease: syncTouches,
+          onResponderTerminate: syncTouches,
+        }
+      : {
+          onPointerDown: handlePointerDown,
+          onPointerMove: handlePointerMove,
+          onPointerUp: releasePointer,
+          onPointerCancel: releasePointer,
+        };
 
   return (
     <View
@@ -233,12 +276,10 @@ export default function StringKeyboard({
           <View
             collapsable={false}
             accessibilityLabel="Клавиатура"
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={releasePointer}
-            onPointerCancel={releasePointer}
+            pointerEvents={Platform.OS === "android" ? "box-only" : undefined}
             className="touch-none"
             style={{ width: gridWidth, height: gridHeight }}
+            {...gridTouchProps}
           >
             {Array.from({ length: KEYBOARD_ROW_COUNT }, (_, row) => (
               <View
