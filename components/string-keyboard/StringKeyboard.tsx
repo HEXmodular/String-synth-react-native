@@ -405,18 +405,24 @@ export default function StringKeyboard({
             <View
               collapsable={false}
               accessibilityLabel="Keyboard"
-              pointerEvents={Platform.OS === "android" ? "box-only" : undefined}
               className="touch-none"
-              style={{ width: gridWidth, height: gridHeight, zIndex: 1 }}
+              style={{
+                width: gridWidth,
+                height: gridHeight,
+                zIndex: 1,
+                ...(Platform.OS === "android"
+                  ? { pointerEvents: "box-only" as const }
+                  : null),
+              }}
               {...gridTouchProps}
             >
               {Array.from({ length: KEYBOARD_ROW_COUNT }, (_, row) => (
                 <View
                   key={row}
-                  pointerEvents="none"
                   className="flex-row"
                   style={{
                     marginBottom: row < KEYBOARD_ROW_COUNT - 1 ? KEY_GAP : 0,
+                    pointerEvents: "none",
                   }}
                 >
                   {Array.from({ length: columns }, (_, column) => {
@@ -433,7 +439,6 @@ export default function StringKeyboard({
                     return (
                       <View
                         key={column}
-                        pointerEvents="none"
                         testID={`key-${row}-${column}`}
                         className="items-center justify-center"
                         style={{
@@ -441,15 +446,16 @@ export default function StringKeyboard({
                           height: cellSize,
                           marginRight: column < columns - 1 ? KEY_GAP : 0,
                           backgroundColor,
+                          pointerEvents: "none",
                         }}
                       >
                         {note.natural ? (
                           <Text
-                            pointerEvents="none"
                             style={{
                               fontSize: labelSize,
                               fontWeight: "600",
                               color: "#081126",
+                              pointerEvents: "none",
                             }}
                           >
                             {note.name}
@@ -457,7 +463,6 @@ export default function StringKeyboard({
                         ) : null}
                         {note.name === "C" ? (
                           <Text
-                            pointerEvents="none"
                             style={{
                               position: "absolute",
                               right: Math.max(4, cellSize * 0.08),
@@ -465,6 +470,7 @@ export default function StringKeyboard({
                               fontSize: Math.max(11, Math.round(labelSize * 0.42)),
                               fontWeight: "600",
                               color: "#081126",
+                              pointerEvents: "none",
                             }}
                           >
                             {midiOctave(note.midi)}

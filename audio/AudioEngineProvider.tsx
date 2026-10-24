@@ -427,7 +427,7 @@ export default function AudioEngineProvider({
           <View
             className="absolute h-px w-px overflow-hidden opacity-0"
             collapsable={false}
-            pointerEvents="none"
+            style={{ pointerEvents: "none" }}
           >
             <WebView
               ref={webViewRef}

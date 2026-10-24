@@ -26,20 +26,25 @@ export default function Index() {
         }}
         onNoteOff={(note) => noteOff(note.midi)}
       />
-      {keyboardExpanded ? (
-        <Pressable
-          accessibilityLabel="Dismiss Keyboard"
-          accessibilityRole="button"
-          onPress={() => setKeyboardExpanded(false)}
-          className="min-h-0 flex-1"
+      <View style={{ flex: 1, minHeight: 0 }}>
+        {keyboardExpanded ? (
+          <Pressable
+            accessibilityLabel="Dismiss Keyboard"
+            accessibilityRole="button"
+            onPress={() => setKeyboardExpanded(false)}
+            style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+          />
+        ) : null}
+        <View
+          style={{
+            flex: 1,
+            minHeight: 0,
+            pointerEvents: keyboardExpanded ? "none" : "auto",
+          }}
         >
-          <BowControls ref={bowControlsRef} disabled />
-        </Pressable>
-      ) : (
-        <View className="min-h-0 flex-1">
-          <BowControls ref={bowControlsRef} />
+          <BowControls ref={bowControlsRef} disabled={keyboardExpanded} />
         </View>
-      )}
+      </View>
     </View>
   );
 }

@@ -2,8 +2,10 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Text, View, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Svg, { Circle } from "react-native-svg";
 
 const THUMB_SIZE = 28;
+const THUMB_STROKE = 3;
 
 type AxisConfig = {
   value: number;
@@ -120,39 +122,57 @@ export default function BowXyPad({
   const thumbTop = size.height * (1 - yRatio) - THUMB_SIZE / 2;
   const accent = disabled ? "#f4f6fa55" : "#f4f6fa";
 
+  const thumbRadius = THUMB_SIZE / 2;
+
   return (
     <View
       className="min-h-0 flex-[2] items-center"
       style={{ opacity: disabled ? 0.35 : 1 }}
     >
-      <GestureDetector gesture={pan}>
-        <View
-          accessibilityRole="adjustable"
-          accessibilityLabel={`${yLabel} and ${xLabel}`}
-          accessibilityState={{ disabled }}
-          accessibilityValue={{
-            min: 0,
-            max: 100,
-            now: Math.round(((xRatio + yRatio) / 2) * 100),
-            text: `${yLabel} ${Math.round(yRatio * 100)}%, ${xLabel} ${Math.round(xRatio * 100)}%`,
-          }}
-          collapsable={false}
-          pointerEvents={disabled ? "none" : "auto"}
-          className="min-h-0 w-full flex-1 touch-none overflow-hidden rounded-2xl border border-white/25 bg-white/10"
-          onLayout={handlePadLayout}
-        >
+      {/* Size box outside GestureDetector — RNGH host often drops flex on Android */}
+      <View
+        className="min-h-0 w-full flex-1"
+        onLayout={handlePadLayout}
+      >
+        <GestureDetector gesture={pan}>
           <View
-            pointerEvents="none"
-            className="absolute rounded-full border-2 border-white bg-accent"
-            style={{
-              width: THUMB_SIZE,
-              height: THUMB_SIZE,
-              left: thumbLeft,
-              top: thumbTop,
+            accessibilityRole="adjustable"
+            accessibilityLabel={`${yLabel} and ${xLabel}`}
+            accessibilityState={{ disabled }}
+            accessibilityValue={{
+              min: 0,
+              max: 100,
+              now: Math.round(((xRatio + yRatio) / 2) * 100),
+              text: `${yLabel} ${Math.round(yRatio * 100)}%, ${xLabel} ${Math.round(xRatio * 100)}%`,
             }}
-          />
-        </View>
-      </GestureDetector>
+            collapsable={false}
+            className="min-h-0 w-full flex-1 touch-none rounded-2xl border border-white/25 bg-accent-muted"
+            style={{ pointerEvents: disabled ? "none" : "auto" }}
+          >
+            {size.width > 0 && size.height > 0 ? (
+              <Svg
+                width={THUMB_SIZE}
+                height={THUMB_SIZE}
+                style={{
+                  position: "absolute",
+                  left: thumbLeft,
+                  top: thumbTop,
+                  pointerEvents: "none",
+                }}
+              >
+                <Circle
+                  cx={thumbRadius}
+                  cy={thumbRadius}
+                  r={thumbRadius - THUMB_STROKE / 2}
+                  fill="#ea7a53"
+                  stroke="#ffffff"
+                  strokeWidth={THUMB_STROKE}
+                />
+              </Svg>
+            ) : null}
+          </View>
+        </GestureDetector>
+      </View>
       <View className="mt-2 flex-row items-center gap-3">
         <View className="items-center gap-1">
           <MaterialIcons name={xIcon} size={18} color={accent} />

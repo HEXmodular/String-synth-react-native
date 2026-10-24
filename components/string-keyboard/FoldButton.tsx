@@ -16,7 +16,7 @@ export default function FoldButton({ expanded, onPress }: FoldButtonProps) {
       accessibilityLabel={label}
       accessibilityState={{ expanded }}
       onPress={onPress}
-      className="h-11 w-full flex-row items-center justify-center border border-white/25 bg-white/10"
+      className="h-11 w-full flex-row items-center justify-center"
       style={({ pressed }) => ({
         opacity: pressed ? 0.7 : 1,
       })}

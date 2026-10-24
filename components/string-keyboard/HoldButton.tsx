@@ -12,18 +12,25 @@ export default function HoldButton({ active, onPress }: HoldButtonProps) {
       accessibilityLabel="Hold notes"
       accessibilityState={{ selected: active }}
       onPress={onPress}
-      className={`flex-1 items-center justify-center border border-white/25 ${
-        active ? "bg-accent" : "bg-white/10"
-      }`}
       style={({ pressed }) => ({
-        opacity: pressed ? 0.7 : 1,
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 12,
+        backgroundColor: active
+          ? pressed
+            ? "#d46d4a"
+            : "#ea7a53"
+          : pressed
+            ? "#9eb0d0"
+            : "#b4c6e3",
       })}
     >
       <Text
         style={{
           fontSize: 22,
           fontWeight: "700",
-          color: active ? "#081126" : "#f4f6fa",
+          color: "#081126",
         }}
       >
         H

@@ -8,6 +8,8 @@
     --color-background: #081126;
     --color-primary: #f4f6fa;
     --color-accent: #ea7a53;
+    /* accent #ea7a53 @ ~22% over background #081126 */
+    --color-accent-muted: #3a2830;
     --color-border: rgba(255, 255, 255, 0.75);
     --color-track: rgba(255, 255, 255, 0.75);
     --color-success: #16a34a;

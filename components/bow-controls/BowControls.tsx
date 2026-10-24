@@ -1,5 +1,4 @@
 import { useAudioEngine } from "@/audio/AudioEngineProvider";
-import AutoAttackButton from "@/components/bow-controls/AutoAttackButton";
 import BowXyPad from "@/components/bow-controls/BowXyPad";
 import VerticalFader from "@/components/bow-controls/VerticalFader";
 import {
@@ -174,7 +173,16 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
     }, []);
 
     return (
-      <View className="h-full flex-row justify-center gap-4 px-3 py-2">
+      <View
+        style={{
+          flex: 1,
+          flexDirection: "row",
+          justifyContent: "center",
+          gap: 16,
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+        }}
+      >
         <BowXyPad
           yLabel="Speed · Y"
           yIcon="speed"
@@ -195,18 +203,16 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
           onChange={handleVibratoChange}
         />
         <VerticalFader
-          label="Attack"
-          icon="trending-up"
+          label={autoAttack ? "Auto" : "Attack"}
+          icon={autoAttack ? "auto-mode" : "trending-up"}
           value={attack}
           min={TIME_MIN}
           max={TIME_MAX}
           disabled={disabled || autoAttack}
+          labelDisabled={disabled}
+          labelSelected={autoAttack}
+          onLabelPress={handleAutoAttackToggle}
           onChange={handleAttackChange}
-        />
-        <AutoAttackButton
-          active={autoAttack}
-          disabled={disabled}
-          onPress={handleAutoAttackToggle}
         />
         <VerticalFader
           label="Release"

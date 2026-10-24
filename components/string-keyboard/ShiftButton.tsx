@@ -20,7 +20,7 @@ export default function ShiftButton({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      className="flex-1 items-center justify-center border border-white/25 bg-white/10"
+      className="flex-1 items-center justify-center"
       style={({ pressed }) => ({
         opacity: disabled ? 0.35 : pressed ? 0.7 : 1,
       })}
