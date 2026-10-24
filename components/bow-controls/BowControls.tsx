@@ -248,15 +248,6 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
           onChange={handleReleaseChange}
         />
         <VerticalFader
-          label="Volume"
-          icon="volume-up"
-          value={masterVolume}
-          min={0}
-          max={1}
-          disabled={disabled}
-          onChange={handleMasterVolumeChange}
-        />
-        <VerticalFader
           label="Predelay"
           icon="timer"
           value={predelay}
@@ -273,6 +264,15 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
           max={1}
           disabled={disabled}
           onChange={handleReverbLevelChange}
+        />
+        <VerticalFader
+          label="Volume"
+          icon="volume-up"
+          value={masterVolume}
+          min={0}
+          max={1}
+          disabled={disabled}
+          onChange={handleMasterVolumeChange}
         />
       </View>
     );
