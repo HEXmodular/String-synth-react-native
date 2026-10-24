@@ -16,6 +16,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Platform,
+  Pressable,
   Text,
   View,
   useWindowDimensions,
@@ -28,9 +29,10 @@ export type { KeyboardNote };
 
 type StringKeyboardProps = {
   voices?: number;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
   onNoteOn?: (note: KeyboardNote) => void;
   onNoteOff?: (note: KeyboardNote) => void;
-  onExpandedChange?: (expanded: boolean) => void;
 };
 
 type StageSize = {
@@ -58,12 +60,12 @@ const ACCIDENTAL_PRESSED_COLOR = "#8a4034";
 
 export default function StringKeyboard({
   voices = 4,
+  expanded,
+  onExpandedChange,
   onNoteOn,
   onNoteOff,
-  onExpandedChange,
 }: StringKeyboardProps) {
   const { height: screenHeight } = useWindowDimensions();
-  const [expanded, setExpanded] = useState(true);
   const [stage, setStage] = useState<StageSize>({ width: 0, height: 0 });
   const [rowOffset, setRowOffset] = useState(0);
   const [sounding, setSounding] = useState<number[]>([]);
@@ -76,10 +78,9 @@ export default function StringKeyboard({
   const pointerMidisRef = useRef<number[]>([]);
   const suppressLatchRef = useRef(new Set<number>());
   const holdActiveRef = useRef(false);
-  const expandedRef = useRef(true);
+  const expandedRef = useRef(expanded);
   const onNoteOnRef = useRef(onNoteOn);
   const onNoteOffRef = useRef(onNoteOff);
-  const onExpandedChangeRef = useRef(onExpandedChange);
   const metricsRef = useRef<GridMetrics>({
     rowOffset: 0,
     columns: 0,
@@ -90,12 +91,24 @@ export default function StringKeyboard({
 
   onNoteOnRef.current = onNoteOn;
   onNoteOffRef.current = onNoteOff;
-  onExpandedChangeRef.current = onExpandedChange;
   holdActiveRef.current = holdActive;
-  expandedRef.current = expanded;
 
   useEffect(() => {
-    onExpandedChangeRef.current?.(expanded);
+    if (expanded) {
+      expandedRef.current = true;
+      return;
+    }
+
+    // Keep sounding voices: latch everything currently playing, drop pointers.
+    for (const midi of soundingRef.current) {
+      if (!latchedRef.current.includes(midi)) {
+        latchedRef.current.push(midi);
+      }
+    }
+    pointersRef.current.clear();
+    pointerMidisRef.current = [];
+    suppressLatchRef.current.clear();
+    expandedRef.current = false;
   }, [expanded]);
 
   const safeVoices =
@@ -327,25 +340,16 @@ export default function StringKeyboard({
     });
   }, [syncFromPointers]);
 
+  const collapseKeyboard = useCallback(() => {
+    if (!expandedRef.current) {
+      return;
+    }
+    onExpandedChange(false);
+  }, [onExpandedChange]);
+
   const toggleExpanded = useCallback(() => {
-    setExpanded((current) => {
-      if (current) {
-        // Keep sounding voices: latch everything currently playing, drop pointers.
-        for (const midi of soundingRef.current) {
-          if (!latchedRef.current.includes(midi)) {
-            latchedRef.current.push(midi);
-          }
-        }
-        pointersRef.current.clear();
-        pointerMidisRef.current = [];
-        suppressLatchRef.current.clear();
-        expandedRef.current = false;
-      } else {
-        expandedRef.current = true;
-      }
-      return !current;
-    });
-  }, []);
+    onExpandedChange(!expandedRef.current);
+  }, [onExpandedChange]);
 
   const canShiftUp = columns > 0 && visibleOffset < limits.max;
   const canShiftDown = columns > 0 && visibleOffset > limits.min;
@@ -390,13 +394,20 @@ export default function StringKeyboard({
 
       <View className="min-h-0 flex-1 flex-row">
         <View className="flex-1 items-center justify-center" onLayout={handleStageLayout}>
+          <Pressable
+            accessibilityLabel="Dismiss Keyboard"
+            accessibilityRole="button"
+            onPress={collapseKeyboard}
+            className="absolute inset-0"
+            style={{ zIndex: 0 }}
+          />
           {columns > 0 && cellSize > 0 ? (
             <View
               collapsable={false}
               accessibilityLabel="Keyboard"
               pointerEvents={Platform.OS === "android" ? "box-only" : undefined}
               className="touch-none"
-              style={{ width: gridWidth, height: gridHeight }}
+              style={{ width: gridWidth, height: gridHeight, zIndex: 1 }}
               {...gridTouchProps}
             >
               {Array.from({ length: KEYBOARD_ROW_COUNT }, (_, row) => (

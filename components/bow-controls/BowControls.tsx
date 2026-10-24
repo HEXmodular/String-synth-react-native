@@ -1,5 +1,6 @@
 import { useAudioEngine } from "@/audio/AudioEngineProvider";
 import AutoAttackButton from "@/components/bow-controls/AutoAttackButton";
+import BowXyPad from "@/components/bow-controls/BowXyPad";
 import VerticalFader from "@/components/bow-controls/VerticalFader";
 import {
   forwardRef,
@@ -116,20 +117,14 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
       [],
     );
 
-    const handleVelocityChange = useCallback(
-      (value: number) => {
-        setVelocity(value);
-        setBowVelocity(value);
+    const handleSpeedPressureChange = useCallback(
+      ({ x, y }: { x: number; y: number }) => {
+        setForce(x);
+        setVelocity(y);
+        setBowForce(invertForce(x));
+        setBowVelocity(y);
       },
-      [setBowVelocity],
-    );
-
-    const handleForceChange = useCallback(
-      (value: number) => {
-        setForce(value);
-        setBowForce(invertForce(value));
-      },
-      [setBowForce],
+      [setBowForce, setBowVelocity],
     );
 
     const handleVibratoChange = useCallback(
@@ -169,23 +164,15 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
 
     return (
       <View className="h-full flex-row justify-center gap-4 px-3 py-2">
-        <VerticalFader
-          label="Speed"
-          icon="speed"
-          value={velocity}
-          min={0}
-          max={1}
+        <BowXyPad
+          yLabel="Speed · Y"
+          yIcon="speed"
+          y={{ value: velocity, min: 0, max: 1 }}
+          xLabel="Pressure · X"
+          xIcon="compress"
+          x={{ value: force, min: FORCE_MIN, max: FORCE_MAX }}
           disabled={disabled}
-          onChange={handleVelocityChange}
-        />
-        <VerticalFader
-          label="Pressure"
-          icon="compress"
-          value={force}
-          min={FORCE_MIN}
-          max={FORCE_MAX}
-          disabled={disabled}
-          onChange={handleForceChange}
+          onChange={handleSpeedPressureChange}
         />
         <VerticalFader
           label="Vibrato"

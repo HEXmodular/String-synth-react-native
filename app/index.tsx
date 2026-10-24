@@ -4,7 +4,7 @@ import BowControls, {
 } from "@/components/bow-controls/BowControls";
 import StringKeyboard from "@/components/string-keyboard/StringKeyboard";
 import { useRef, useState } from "react";
-import { Platform, View } from "react-native";
+import { Platform, Pressable, View } from "react-native";
 
 export default function Index() {
   const { resume, noteOn, noteOff } = useAudioEngine();
@@ -15,6 +15,7 @@ export default function Index() {
     <View className="flex-1 bg-background">
       <StringKeyboard
         voices={4}
+        expanded={keyboardExpanded}
         onExpandedChange={setKeyboardExpanded}
         onNoteOn={(note) => {
           if (Platform.OS !== "web") {
@@ -25,9 +26,20 @@ export default function Index() {
         }}
         onNoteOff={(note) => noteOff(note.midi)}
       />
-      <View className="min-h-0 flex-1">
-        <BowControls ref={bowControlsRef} disabled={keyboardExpanded} />
-      </View>
+      {keyboardExpanded ? (
+        <Pressable
+          accessibilityLabel="Dismiss Keyboard"
+          accessibilityRole="button"
+          onPress={() => setKeyboardExpanded(false)}
+          className="min-h-0 flex-1"
+        >
+          <BowControls ref={bowControlsRef} disabled />
+        </Pressable>
+      ) : (
+        <View className="min-h-0 flex-1">
+          <BowControls ref={bowControlsRef} />
+        </View>
+      )}
     </View>
   );
 }
