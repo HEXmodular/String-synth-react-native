@@ -26,6 +26,8 @@ type EngineHost = Window & {
   setBowVelocity?: (value: number) => void;
   setBowForce?: (value: number) => void;
   setVibratoIntensity?: (value: number) => void;
+  setBowVelocityAttack?: (value: number) => void;
+  setBowVelocityRelease?: (value: number) => void;
 };
 
 type AudioEngineValue = {
@@ -36,6 +38,8 @@ type AudioEngineValue = {
   setBowVelocity: (value: number) => void;
   setBowForce: (value: number) => void;
   setVibratoIntensity: (value: number) => void;
+  setBowVelocityAttack: (value: number) => void;
+  setBowVelocityRelease: (value: number) => void;
 };
 
 const AudioEngineContext = createContext<AudioEngineValue | null>(null);
@@ -152,6 +156,28 @@ export default function AudioEngineProvider({
     );
   }, []);
 
+  const publishBowVelocityAttack = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setBowVelocityAttack?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setBowVelocityAttack(${value}); true;`,
+    );
+  }, []);
+
+  const publishBowVelocityRelease = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setBowVelocityRelease?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setBowVelocityRelease(${value}); true;`,
+    );
+  }, []);
+
   const resume = useCallback(() => {
     if (Platform.OS === "web") {
       webEngine().resumeAudio?.();
@@ -247,6 +273,30 @@ export default function AudioEngineProvider({
     [publishVibratoIntensity],
   );
 
+  const setBowVelocityAttack = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishBowVelocityAttack(next);
+    },
+    [publishBowVelocityAttack],
+  );
+
+  const setBowVelocityRelease = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishBowVelocityRelease(next);
+    },
+    [publishBowVelocityRelease],
+  );
+
   const flushNotes = useCallback(() => {
     const notes = notesRef.current.splice(0);
     const held = Array.from(heldRef.current.entries());
@@ -327,6 +377,8 @@ export default function AudioEngineProvider({
       setBowVelocity,
       setBowForce,
       setVibratoIntensity,
+      setBowVelocityAttack,
+      setBowVelocityRelease,
     }),
     [
       resume,
@@ -336,6 +388,8 @@ export default function AudioEngineProvider({
       setBowVelocity,
       setBowForce,
       setVibratoIntensity,
+      setBowVelocityAttack,
+      setBowVelocityRelease,
     ],
   );
 

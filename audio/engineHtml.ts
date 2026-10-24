@@ -14,6 +14,8 @@ export function createEngineScript() {
     window.setBowVelocity = function () {};
     window.setBowForce = function () {};
     window.setVibratoIntensity = function () {};
+    window.setBowVelocityAttack = function () {};
+    window.setBowVelocityRelease = function () {};
     return;
   }
 
@@ -32,6 +34,8 @@ export function createEngineScript() {
   var bowVelocity = 0.18;
   var bowForce = 1;
   var vibratoIntensity = 0;
+  var velocityAttack = 0.08;
+  var velocityRelease = 0.1;
 
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
@@ -103,10 +107,11 @@ export function createEngineScript() {
 
   function releaseVoice(voice) {
     var now = audioCtx.currentTime;
+    var releaseTime = Math.max(0.01, velocityRelease);
     voice.velocity.cancelScheduledValues(now);
     voice.amp.gain.cancelScheduledValues(now);
     voice.velocity.setValueAtTime(voice.velocity.value || 0, now);
-    voice.velocity.linearRampToValueAtTime(0, now + 0.1);
+    voice.velocity.linearRampToValueAtTime(0, now + releaseTime);
 
     var gainNow = voice.amp.gain.value;
     if (!(gainNow > 0.001)) {
@@ -114,8 +119,10 @@ export function createEngineScript() {
       return;
     }
 
+    // Keep amp open slightly past bow stop so free string decay stays audible.
+    var ampRelease = releaseTime + 0.12;
     voice.amp.gain.setValueAtTime(gainNow, now);
-    voice.amp.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    voice.amp.gain.exponentialRampToValueAtTime(0.001, now + ampRelease);
   }
 
   function allocVoice() {
@@ -161,7 +168,7 @@ export function createEngineScript() {
     voice.force.setValueAtTime(bowForce, now);
     voice.vibrato.setValueAtTime(vibratoIntensity, now);
     voice.velocity.setValueAtTime(0, now);
-    voice.velocity.linearRampToValueAtTime(bowVelocity, now + 0.08);
+    voice.velocity.linearRampToValueAtTime(bowVelocity, now + velocityAttack);
     voice.amp.gain.setValueAtTime(0, now);
     voice.amp.gain.linearRampToValueAtTime(0.22, now + 0.05);
   }
@@ -181,6 +188,14 @@ export function createEngineScript() {
   window.setVibratoIntensity = function (value) {
     vibratoIntensity = clamp(finite(value, vibratoIntensity), 0, 1);
     applyBowToActive();
+  };
+
+  window.setBowVelocityAttack = function (value) {
+    velocityAttack = clamp(finite(value, velocityAttack), 0.01, 1);
+  };
+
+  window.setBowVelocityRelease = function (value) {
+    velocityRelease = clamp(finite(value, velocityRelease), 0.01, 1);
   };
 
   window.noteOn = function (noteId, frequency) {
@@ -287,6 +302,8 @@ export function createEngineScript() {
       window.setBowVelocity = function () {};
       window.setBowForce = function () {};
       window.setVibratoIntensity = function () {};
+      window.setBowVelocityAttack = function () {};
+      window.setBowVelocityRelease = function () {};
       if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
         window.ReactNativeWebView.postMessage(
           JSON.stringify({ type: "error", message: String(error && error.message ? error.message : error) }),
