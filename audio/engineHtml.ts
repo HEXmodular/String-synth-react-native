@@ -1,7 +1,14 @@
 import { bowedStringProcessorSource } from "@/audio/bowedStringProcessor";
+import { fdnReverbProcessorSource } from "@/audio/fdnReverbProcessor";
+
+/** FDN delay-line count: 4 or 8. */
+const FDN_LINES = 8;
 
 export function createEngineScript() {
-  const processorSource = JSON.stringify(bowedStringProcessorSource);
+  const processorSource = JSON.stringify(
+    bowedStringProcessorSource + "\n" + fdnReverbProcessorSource,
+  );
+  const fdnLines = FDN_LINES === 4 ? 4 : 8;
 
   return `
 (function () {
@@ -17,6 +24,8 @@ export function createEngineScript() {
     window.setBowVelocityAttack = function () {};
     window.setBowVelocityRelease = function () {};
     window.setMasterVolume = function () {};
+    window.setPredelay = function () {};
+    window.setReverbLevel = function () {};
     return;
   }
 
@@ -28,8 +37,11 @@ export function createEngineScript() {
   }
 
   var MAX_VOICES = 16;
+  var FDN_LINES = ${fdnLines};
   var mixer = null;
   var master = null;
+  var predelay = null;
+  var reverbWet = null;
   var voices = [];
   var ready = false;
   var pending = [];
@@ -39,6 +51,8 @@ export function createEngineScript() {
   var velocityAttack = 0.08;
   var velocityRelease = 0.1;
   var masterVolume = 1;
+  var predelayTime = 0.02;
+  var reverbLevel = 0.28;
 
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
@@ -209,6 +223,22 @@ export function createEngineScript() {
     master.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
   };
 
+  window.setPredelay = function (value) {
+    predelayTime = clamp(finite(value, predelayTime), 0, 0.2);
+    if (!predelay) {
+      return;
+    }
+    predelay.delayTime.setValueAtTime(predelayTime, audioCtx.currentTime);
+  };
+
+  window.setReverbLevel = function (value) {
+    reverbLevel = clamp(finite(value, reverbLevel), 0, 1);
+    if (!reverbWet) {
+      return;
+    }
+    reverbWet.gain.setValueAtTime(reverbLevel, audioCtx.currentTime);
+  };
+
   window.noteOn = function (noteId, frequency) {
     resume();
     if (!ready) {
@@ -289,8 +319,30 @@ export function createEngineScript() {
 
       master = audioCtx.createGain();
       master.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
+
+      predelay = audioCtx.createDelay(0.25);
+      predelay.delayTime.setValueAtTime(predelayTime, audioCtx.currentTime);
+
+      var fdn = new AudioWorkletNode(audioCtx, "fdn-reverb-processor", {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+        channelCount: 1,
+        channelCountMode: "explicit",
+        processorOptions: { lines: FDN_LINES },
+      });
+
+      reverbWet = audioCtx.createGain();
+      reverbWet.gain.setValueAtTime(reverbLevel, audioCtx.currentTime);
+
       mixer.connect(bodyFilter);
+      // Dry path
       bodyFilter.connect(master);
+      // Wet: single FDN → stereo out (no per-channel FDN)
+      bodyFilter.connect(predelay);
+      predelay.connect(fdn);
+      fdn.connect(reverbWet);
+      reverbWet.connect(master);
       master.connect(audioCtx.destination);
 
       ready = true;
@@ -316,6 +368,8 @@ export function createEngineScript() {
       window.setBowVelocityAttack = function () {};
       window.setBowVelocityRelease = function () {};
       window.setMasterVolume = function () {};
+      window.setPredelay = function () {};
+      window.setReverbLevel = function () {};
       if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
         window.ReactNativeWebView.postMessage(
           JSON.stringify({ type: "error", message: String(error && error.message ? error.message : error) }),

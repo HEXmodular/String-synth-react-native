@@ -29,6 +29,8 @@ type EngineHost = Window & {
   setBowVelocityAttack?: (value: number) => void;
   setBowVelocityRelease?: (value: number) => void;
   setMasterVolume?: (value: number) => void;
+  setPredelay?: (value: number) => void;
+  setReverbLevel?: (value: number) => void;
 };
 
 type AudioEngineValue = {
@@ -42,6 +44,8 @@ type AudioEngineValue = {
   setBowVelocityAttack: (value: number) => void;
   setBowVelocityRelease: (value: number) => void;
   setMasterVolume: (value: number) => void;
+  setPredelay: (value: number) => void;
+  setReverbLevel: (value: number) => void;
 };
 
 const AudioEngineContext = createContext<AudioEngineValue | null>(null);
@@ -191,6 +195,26 @@ export default function AudioEngineProvider({
     );
   }, []);
 
+  const publishPredelay = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setPredelay?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(`window.setPredelay(${value}); true;`);
+  }, []);
+
+  const publishReverbLevel = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setReverbLevel?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setReverbLevel(${value}); true;`,
+    );
+  }, []);
+
   const resume = useCallback(() => {
     if (Platform.OS === "web") {
       webEngine().resumeAudio?.();
@@ -322,6 +346,30 @@ export default function AudioEngineProvider({
     [publishMasterVolume],
   );
 
+  const setPredelay = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishPredelay(next);
+    },
+    [publishPredelay],
+  );
+
+  const setReverbLevel = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishReverbLevel(next);
+    },
+    [publishReverbLevel],
+  );
+
   const flushNotes = useCallback(() => {
     const notes = notesRef.current.splice(0);
     const held = Array.from(heldRef.current.entries());
@@ -405,6 +453,8 @@ export default function AudioEngineProvider({
       setBowVelocityAttack,
       setBowVelocityRelease,
       setMasterVolume,
+      setPredelay,
+      setReverbLevel,
     }),
     [
       resume,
@@ -417,6 +467,8 @@ export default function AudioEngineProvider({
       setBowVelocityAttack,
       setBowVelocityRelease,
       setMasterVolume,
+      setPredelay,
+      setReverbLevel,
     ],
   );
 

@@ -20,6 +20,10 @@ const TIME_MAX = 1;
 const DEFAULT_ATTACK = 0.08;
 const DEFAULT_RELEASE = 0.1;
 const DEFAULT_MASTER_VOLUME = 1;
+const PREDELAY_MIN = 0;
+const PREDELAY_MAX = 0.2;
+const DEFAULT_PREDELAY = 0.02;
+const DEFAULT_REVERB_LEVEL = 0.28;
 
 /** IOI (s) at/below this → shortest attack. */
 const AUTO_ATTACK_FAST_IOI = 0.1;
@@ -66,6 +70,8 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
       setBowVelocityAttack,
       setBowVelocityRelease,
       setMasterVolume,
+      setPredelay,
+      setReverbLevel,
     } = useAudioEngine();
     const [velocity, setVelocity] = useState(DEFAULT_VELOCITY);
     const [force, setForce] = useState(DEFAULT_FORCE);
@@ -73,6 +79,8 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
     const [attack, setAttack] = useState(DEFAULT_ATTACK);
     const [release, setRelease] = useState(DEFAULT_RELEASE);
     const [masterVolume, setMasterVolumeState] = useState(DEFAULT_MASTER_VOLUME);
+    const [predelay, setPredelayState] = useState(DEFAULT_PREDELAY);
+    const [reverbLevel, setReverbLevelState] = useState(DEFAULT_REVERB_LEVEL);
     const [autoAttack, setAutoAttack] = useState(false);
 
     const autoAttackRef = useRef(false);
@@ -161,6 +169,22 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
       [setMasterVolume],
     );
 
+    const handlePredelayChange = useCallback(
+      (value: number) => {
+        setPredelayState(value);
+        setPredelay(value);
+      },
+      [setPredelay],
+    );
+
+    const handleReverbLevelChange = useCallback(
+      (value: number) => {
+        setReverbLevelState(value);
+        setReverbLevel(value);
+      },
+      [setReverbLevel],
+    );
+
     const handleAutoAttackToggle = useCallback(() => {
       setAutoAttack((current) => {
         const next = !current;
@@ -231,6 +255,24 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
           max={1}
           disabled={disabled}
           onChange={handleMasterVolumeChange}
+        />
+        <VerticalFader
+          label="Predelay"
+          icon="timer"
+          value={predelay}
+          min={PREDELAY_MIN}
+          max={PREDELAY_MAX}
+          disabled={disabled}
+          onChange={handlePredelayChange}
+        />
+        <VerticalFader
+          label="Reverb"
+          icon="blur-on"
+          value={reverbLevel}
+          min={0}
+          max={1}
+          disabled={disabled}
+          onChange={handleReverbLevelChange}
         />
       </View>
     );
