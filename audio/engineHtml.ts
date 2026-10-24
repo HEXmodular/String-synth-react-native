@@ -11,6 +11,9 @@ export function createEngineScript() {
     window.bowNote = function () {};
     window.noteOn = function () {};
     window.noteOff = function () {};
+    window.setBowVelocity = function () {};
+    window.setBowForce = function () {};
+    window.setVibratoIntensity = function () {};
     return;
   }
 
@@ -26,6 +29,9 @@ export function createEngineScript() {
   var voices = [];
   var ready = false;
   var pending = [];
+  var bowVelocity = 0.18;
+  var bowForce = 1;
+  var vibratoIntensity = 0;
 
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
@@ -34,6 +40,26 @@ export function createEngineScript() {
   function finite(value, fallback) {
     var next = Number(value);
     return Number.isFinite(next) ? next : fallback;
+  }
+
+  function applyBowToActive() {
+    if (!ready) {
+      return;
+    }
+
+    var now = audioCtx.currentTime;
+    for (var i = 0; i < voices.length; i++) {
+      var voice = voices[i];
+      if (!voice.active) {
+        continue;
+      }
+      voice.force.cancelScheduledValues(now);
+      voice.velocity.cancelScheduledValues(now);
+      voice.vibrato.cancelScheduledValues(now);
+      voice.force.setValueAtTime(bowForce, now);
+      voice.velocity.setValueAtTime(bowVelocity, now);
+      voice.vibrato.setValueAtTime(vibratoIntensity, now);
+    }
   }
 
   function resume() {
@@ -49,13 +75,16 @@ export function createEngineScript() {
     var now = audioCtx.currentTime;
     amp.gain.setValueAtTime(0, now);
     var velocity = stringNode.parameters.get("bowVelocity");
+    var vibrato = stringNode.parameters.get("vibratoDepth");
     velocity.setValueAtTime(0, now);
+    vibrato.setValueAtTime(0, now);
     stringNode.connect(amp);
     amp.connect(mixer);
     return {
       frequency: stringNode.parameters.get("frequency"),
       force: stringNode.parameters.get("bowForce"),
       velocity: velocity,
+      vibrato: vibrato,
       amp: amp,
       noteId: null,
       active: false,
@@ -125,17 +154,34 @@ export function createEngineScript() {
     voice.frequency.cancelScheduledValues(now);
     voice.force.cancelScheduledValues(now);
     voice.velocity.cancelScheduledValues(now);
+    voice.vibrato.cancelScheduledValues(now);
     voice.amp.gain.cancelScheduledValues(now);
 
     voice.frequency.setValueAtTime(freq, now);
-    voice.force.setValueAtTime(1, now);
+    voice.force.setValueAtTime(bowForce, now);
+    voice.vibrato.setValueAtTime(vibratoIntensity, now);
     voice.velocity.setValueAtTime(0, now);
-    voice.velocity.linearRampToValueAtTime(0.18, now + 0.08);
+    voice.velocity.linearRampToValueAtTime(bowVelocity, now + 0.08);
     voice.amp.gain.setValueAtTime(0, now);
     voice.amp.gain.linearRampToValueAtTime(0.22, now + 0.05);
   }
 
   window.resumeAudio = resume;
+
+  window.setBowVelocity = function (value) {
+    bowVelocity = clamp(finite(value, bowVelocity), 0, 1);
+    applyBowToActive();
+  };
+
+  window.setBowForce = function (value) {
+    bowForce = clamp(finite(value, bowForce), 0.1, 5);
+    applyBowToActive();
+  };
+
+  window.setVibratoIntensity = function (value) {
+    vibratoIntensity = clamp(finite(value, vibratoIntensity), 0, 1);
+    applyBowToActive();
+  };
 
   window.noteOn = function (noteId, frequency) {
     resume();
@@ -223,6 +269,9 @@ export function createEngineScript() {
 
       ready = true;
       flushPending();
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: "ready" }));
+      }
     }).catch(function (error) {
       URL.revokeObjectURL(url);
       throw error;
@@ -235,6 +284,14 @@ export function createEngineScript() {
       window.bowNote = function () {};
       window.noteOn = function () {};
       window.noteOff = function () {};
+      window.setBowVelocity = function () {};
+      window.setBowForce = function () {};
+      window.setVibratoIntensity = function () {};
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(
+          JSON.stringify({ type: "error", message: String(error && error.message ? error.message : error) }),
+        );
+      }
     }
   });
 

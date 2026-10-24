@@ -5,6 +5,7 @@ class BowedStringProcessor extends AudioWorkletProcessor {
       { name: 'frequency', defaultValue: 440, minValue: 20, maxValue: 5000 },
       { name: 'bowForce', defaultValue: 1, minValue: 0.1, maxValue: 5 },
       { name: 'bowVelocity', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'vibratoDepth', defaultValue: 0, minValue: 0, maxValue: 1 },
     ];
   }
 
@@ -16,6 +17,7 @@ class BowedStringProcessor extends AudioWorkletProcessor {
     this.ptr = 0;
     this.filterState = 0;
     this.previousVelocity = 0;
+    this.vibratoPhase = 0;
   }
 
   read(buffer, delay) {
@@ -43,8 +45,16 @@ class BowedStringProcessor extends AudioWorkletProcessor {
       const frequency = parameters.frequency.length > 1 ? parameters.frequency[i] : parameters.frequency[0];
       const bowForce = parameters.bowForce.length > 1 ? parameters.bowForce[i] : parameters.bowForce[0];
       const bowVelocity = parameters.bowVelocity.length > 1 ? parameters.bowVelocity[i] : parameters.bowVelocity[0];
+      const vibratoDepth = parameters.vibratoDepth.length > 1 ? parameters.vibratoDepth[i] : parameters.vibratoDepth[0];
 
-      const freq = Math.min(5000, Math.max(20, frequency));
+      const depth = Math.min(1, Math.max(0, vibratoDepth));
+      // Weaker vibrato on low notes, fuller on high (≈0.25 at ~65 Hz, 1 at ~520 Hz+).
+      const pitchScale = Math.min(1, Math.max(0.2, Math.sqrt(Math.max(frequency, 20) / 520)));
+      this.vibratoPhase += (5.5 * 2 * Math.PI) / sampleRate;
+      if (this.vibratoPhase > Math.PI * 2) this.vibratoPhase -= Math.PI * 2;
+      const vibrato = 1 + Math.sin(this.vibratoPhase) * depth * pitchScale * 0.03;
+
+      const freq = Math.min(5000, Math.max(20, frequency * vibrato));
       const slope = Math.min(5, Math.max(0.1, bowForce));
       const velocity = Math.min(1, Math.max(0, bowVelocity));
 

@@ -23,6 +23,9 @@ type EngineHost = Window & {
   bowNote?: (frequency: number, duration: number) => void;
   noteOn?: (noteId: number, frequency: number) => void;
   noteOff?: (noteId: number) => void;
+  setBowVelocity?: (value: number) => void;
+  setBowForce?: (value: number) => void;
+  setVibratoIntensity?: (value: number) => void;
 };
 
 type AudioEngineValue = {
@@ -30,6 +33,9 @@ type AudioEngineValue = {
   bowNote: (frequency: number, duration: number) => void;
   noteOn: (noteId: number, frequency: number) => void;
   noteOff: (noteId: number) => void;
+  setBowVelocity: (value: number) => void;
+  setBowForce: (value: number) => void;
+  setVibratoIntensity: (value: number) => void;
 };
 
 const AudioEngineContext = createContext<AudioEngineValue | null>(null);
@@ -115,6 +121,37 @@ export default function AudioEngineProvider({
     webViewRef.current?.injectJavaScript(`window.noteOff(${noteId}); true;`);
   }, []);
 
+  const publishBowVelocity = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setBowVelocity?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setBowVelocity(${value}); true;`,
+    );
+  }, []);
+
+  const publishBowForce = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setBowForce?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(`window.setBowForce(${value}); true;`);
+  }, []);
+
+  const publishVibratoIntensity = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setVibratoIntensity?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setVibratoIntensity(${value}); true;`,
+    );
+  }, []);
+
   const resume = useCallback(() => {
     if (Platform.OS === "web") {
       webEngine().resumeAudio?.();
@@ -174,6 +211,42 @@ export default function AudioEngineProvider({
     [publishNoteOff],
   );
 
+  const setBowVelocity = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishBowVelocity(next);
+    },
+    [publishBowVelocity],
+  );
+
+  const setBowForce = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishBowForce(next);
+    },
+    [publishBowForce],
+  );
+
+  const setVibratoIntensity = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishVibratoIntensity(next);
+    },
+    [publishVibratoIntensity],
+  );
+
   const flushNotes = useCallback(() => {
     const notes = notesRef.current.splice(0);
     const held = Array.from(heldRef.current.entries());
@@ -192,10 +265,40 @@ export default function AudioEngineProvider({
     }
   }, [publishNote, publishNoteOn, resume]);
 
-  const handleLoadEnd = useCallback(() => {
+  const markEngineReady = useCallback(() => {
+    if (readyRef.current) {
+      resume();
+      return;
+    }
+
     readyRef.current = true;
     flushNotes();
-  }, [flushNotes]);
+  }, [flushNotes, resume]);
+
+  const handleLoadEnd = useCallback(() => {
+    markEngineReady();
+  }, [markEngineReady]);
+
+  const handleEngineMessage = useCallback(
+    (payload: string) => {
+      try {
+        const message = JSON.parse(payload) as {
+          type?: string;
+          message?: string;
+        };
+        if (message.type === "ready") {
+          markEngineReady();
+          return;
+        }
+        if (message.type === "error" && __DEV__) {
+          console.warn("[audio-engine]", message.message ?? "init failed");
+        }
+      } catch {
+        // Ignore non-JSON WebView messages.
+      }
+    },
+    [markEngineReady],
+  );
 
   useEffect(() => {
     if (Platform.OS !== "web") {
@@ -216,8 +319,24 @@ export default function AudioEngineProvider({
   }, [flushNotes]);
 
   const value = useMemo(
-    () => ({ resume, bowNote, noteOn, noteOff }),
-    [resume, bowNote, noteOn, noteOff],
+    () => ({
+      resume,
+      bowNote,
+      noteOn,
+      noteOff,
+      setBowVelocity,
+      setBowForce,
+      setVibratoIntensity,
+    }),
+    [
+      resume,
+      bowNote,
+      noteOn,
+      noteOff,
+      setBowVelocity,
+      setBowForce,
+      setVibratoIntensity,
+    ],
   );
 
   return (
@@ -233,10 +352,12 @@ export default function AudioEngineProvider({
               ref={webViewRef}
               style={{ width: 1, height: 1 }}
               originWhitelist={["*"]}
-              source={{ html: ENGINE_HTML }}
+              source={{ html: ENGINE_HTML, baseUrl: "https://localhost/" }}
+              javaScriptEnabled
               allowsInlineMediaPlayback
               mediaPlaybackRequiresUserAction={false}
               onLoadEnd={handleLoadEnd}
+              onMessage={(event) => handleEngineMessage(event.nativeEvent.data)}
             />
           </View>
         )}
