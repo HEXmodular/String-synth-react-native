@@ -76,7 +76,7 @@ export default function BowControls({ disabled = false }: BowControlsProps) {
   );
 
   return (
-    <View className="h-full flex-row justify-center gap-6 px-4 py-2">
+    <View className="h-full flex-row justify-center gap-4 px-3 py-2">
       <VerticalFader
         label="Speed"
         icon="speed"

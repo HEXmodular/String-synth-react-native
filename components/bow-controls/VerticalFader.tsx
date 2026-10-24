@@ -168,7 +168,7 @@ export default function VerticalFader({
         pointerEvents={
           disabled ? "none" : Platform.OS === "android" ? "box-only" : "auto"
         }
-        className="min-h-0 w-12 flex-1 touch-none overflow-hidden rounded-2xl border border-white/25 bg-white/10"
+        className="min-h-0 w-20 flex-1 touch-none overflow-hidden rounded-2xl border border-white/25 bg-white/10"
         onLayout={handleTrackLayout}
         {...trackTouchProps}
       >
