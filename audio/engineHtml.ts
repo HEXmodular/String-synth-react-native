@@ -16,6 +16,7 @@ export function createEngineScript() {
     window.setVibratoIntensity = function () {};
     window.setBowVelocityAttack = function () {};
     window.setBowVelocityRelease = function () {};
+    window.setMasterVolume = function () {};
     return;
   }
 
@@ -28,6 +29,7 @@ export function createEngineScript() {
 
   var MAX_VOICES = 16;
   var mixer = null;
+  var master = null;
   var voices = [];
   var ready = false;
   var pending = [];
@@ -36,6 +38,7 @@ export function createEngineScript() {
   var vibratoIntensity = 0;
   var velocityAttack = 0.08;
   var velocityRelease = 0.1;
+  var masterVolume = 1;
 
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
@@ -198,6 +201,14 @@ export function createEngineScript() {
     velocityRelease = clamp(finite(value, velocityRelease), 0.01, 1);
   };
 
+  window.setMasterVolume = function (value) {
+    masterVolume = clamp(finite(value, masterVolume), 0, 1);
+    if (!master) {
+      return;
+    }
+    master.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
+  };
+
   window.noteOn = function (noteId, frequency) {
     resume();
     if (!ready) {
@@ -276,8 +287,8 @@ export function createEngineScript() {
       bodyFilter.frequency.value = 1200;
       bodyFilter.Q.value = 1.0;
 
-      var master = audioCtx.createGain();
-      master.gain.setValueAtTime(1, audioCtx.currentTime);
+      master = audioCtx.createGain();
+      master.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
       mixer.connect(bodyFilter);
       bodyFilter.connect(master);
       master.connect(audioCtx.destination);
@@ -304,6 +315,7 @@ export function createEngineScript() {
       window.setVibratoIntensity = function () {};
       window.setBowVelocityAttack = function () {};
       window.setBowVelocityRelease = function () {};
+      window.setMasterVolume = function () {};
       if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
         window.ReactNativeWebView.postMessage(
           JSON.stringify({ type: "error", message: String(error && error.message ? error.message : error) }),

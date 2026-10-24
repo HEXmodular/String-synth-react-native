@@ -28,6 +28,7 @@ type EngineHost = Window & {
   setVibratoIntensity?: (value: number) => void;
   setBowVelocityAttack?: (value: number) => void;
   setBowVelocityRelease?: (value: number) => void;
+  setMasterVolume?: (value: number) => void;
 };
 
 type AudioEngineValue = {
@@ -40,6 +41,7 @@ type AudioEngineValue = {
   setVibratoIntensity: (value: number) => void;
   setBowVelocityAttack: (value: number) => void;
   setBowVelocityRelease: (value: number) => void;
+  setMasterVolume: (value: number) => void;
 };
 
 const AudioEngineContext = createContext<AudioEngineValue | null>(null);
@@ -178,6 +180,17 @@ export default function AudioEngineProvider({
     );
   }, []);
 
+  const publishMasterVolume = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setMasterVolume?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setMasterVolume(${value}); true;`,
+    );
+  }, []);
+
   const resume = useCallback(() => {
     if (Platform.OS === "web") {
       webEngine().resumeAudio?.();
@@ -297,6 +310,18 @@ export default function AudioEngineProvider({
     [publishBowVelocityRelease],
   );
 
+  const setMasterVolume = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishMasterVolume(next);
+    },
+    [publishMasterVolume],
+  );
+
   const flushNotes = useCallback(() => {
     const notes = notesRef.current.splice(0);
     const held = Array.from(heldRef.current.entries());
@@ -379,6 +404,7 @@ export default function AudioEngineProvider({
       setVibratoIntensity,
       setBowVelocityAttack,
       setBowVelocityRelease,
+      setMasterVolume,
     }),
     [
       resume,
@@ -390,6 +416,7 @@ export default function AudioEngineProvider({
       setVibratoIntensity,
       setBowVelocityAttack,
       setBowVelocityRelease,
+      setMasterVolume,
     ],
   );
 

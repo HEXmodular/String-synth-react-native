@@ -20,6 +20,7 @@ const TIME_MIN = 0.01;
 const TIME_MAX = 1;
 const DEFAULT_ATTACK = 0.08;
 const DEFAULT_RELEASE = 0.1;
+const DEFAULT_MASTER_VOLUME = 1;
 
 /** IOI (s) at/below this → shortest attack. */
 const AUTO_ATTACK_FAST_IOI = 0.1;
@@ -65,12 +66,14 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
       setVibratoIntensity,
       setBowVelocityAttack,
       setBowVelocityRelease,
+      setMasterVolume,
     } = useAudioEngine();
     const [velocity, setVelocity] = useState(DEFAULT_VELOCITY);
     const [force, setForce] = useState(DEFAULT_FORCE);
     const [vibrato, setVibrato] = useState(DEFAULT_VIBRATO);
     const [attack, setAttack] = useState(DEFAULT_ATTACK);
     const [release, setRelease] = useState(DEFAULT_RELEASE);
+    const [masterVolume, setMasterVolumeState] = useState(DEFAULT_MASTER_VOLUME);
     const [autoAttack, setAutoAttack] = useState(false);
 
     const autoAttackRef = useRef(false);
@@ -151,6 +154,14 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
       [setBowVelocityRelease],
     );
 
+    const handleMasterVolumeChange = useCallback(
+      (value: number) => {
+        setMasterVolumeState(value);
+        setMasterVolume(value);
+      },
+      [setMasterVolume],
+    );
+
     const handleAutoAttackToggle = useCallback(() => {
       setAutoAttack((current) => {
         const next = !current;
@@ -205,6 +216,15 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
           max={TIME_MAX}
           disabled={disabled}
           onChange={handleReleaseChange}
+        />
+        <VerticalFader
+          label="Volume"
+          icon="volume-up"
+          value={masterVolume}
+          min={0}
+          max={1}
+          disabled={disabled}
+          onChange={handleMasterVolumeChange}
         />
       </View>
     );
