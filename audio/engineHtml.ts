@@ -21,6 +21,7 @@ export function createEngineScript() {
     window.setBowVelocity = function () {};
     window.setBowForce = function () {};
     window.setVibratoIntensity = function () {};
+    window.setVibratoRate = function () {};
     window.setBowVelocityAttack = function () {};
     window.setBowVelocityRelease = function () {};
     window.setMasterVolume = function () {};
@@ -48,6 +49,7 @@ export function createEngineScript() {
   var bowVelocity = 0.18;
   var bowForce = 1;
   var vibratoIntensity = 0;
+  var vibratoRate = 5.5;
   var velocityAttack = 0.08;
   var velocityRelease = 0.1;
   var masterVolume = 1;
@@ -77,9 +79,11 @@ export function createEngineScript() {
       voice.force.cancelScheduledValues(now);
       voice.velocity.cancelScheduledValues(now);
       voice.vibrato.cancelScheduledValues(now);
+      voice.vibratoRate.cancelScheduledValues(now);
       voice.force.setValueAtTime(bowForce, now);
       voice.velocity.setValueAtTime(bowVelocity, now);
       voice.vibrato.setValueAtTime(vibratoIntensity, now);
+      voice.vibratoRate.setValueAtTime(vibratoRate, now);
     }
   }
 
@@ -97,8 +101,10 @@ export function createEngineScript() {
     amp.gain.setValueAtTime(0, now);
     var velocity = stringNode.parameters.get("bowVelocity");
     var vibrato = stringNode.parameters.get("vibratoDepth");
+    var vibratoRateParam = stringNode.parameters.get("vibratoRate");
     velocity.setValueAtTime(0, now);
     vibrato.setValueAtTime(0, now);
+    vibratoRateParam.setValueAtTime(vibratoRate, now);
     stringNode.connect(amp);
     amp.connect(mixer);
     return {
@@ -106,6 +112,7 @@ export function createEngineScript() {
       force: stringNode.parameters.get("bowForce"),
       velocity: velocity,
       vibrato: vibrato,
+      vibratoRate: vibratoRateParam,
       amp: amp,
       noteId: null,
       active: false,
@@ -179,11 +186,13 @@ export function createEngineScript() {
     voice.force.cancelScheduledValues(now);
     voice.velocity.cancelScheduledValues(now);
     voice.vibrato.cancelScheduledValues(now);
+    voice.vibratoRate.cancelScheduledValues(now);
     voice.amp.gain.cancelScheduledValues(now);
 
     voice.frequency.setValueAtTime(freq, now);
     voice.force.setValueAtTime(bowForce, now);
     voice.vibrato.setValueAtTime(vibratoIntensity, now);
+    voice.vibratoRate.setValueAtTime(vibratoRate, now);
     voice.velocity.setValueAtTime(0, now);
     voice.velocity.linearRampToValueAtTime(bowVelocity, now + velocityAttack);
     voice.amp.gain.setValueAtTime(0, now);
@@ -204,6 +213,11 @@ export function createEngineScript() {
 
   window.setVibratoIntensity = function (value) {
     vibratoIntensity = clamp(finite(value, vibratoIntensity), 0, 1);
+    applyBowToActive();
+  };
+
+  window.setVibratoRate = function (value) {
+    vibratoRate = clamp(finite(value, vibratoRate), 1, 10);
     applyBowToActive();
   };
 
@@ -365,6 +379,7 @@ export function createEngineScript() {
       window.setBowVelocity = function () {};
       window.setBowForce = function () {};
       window.setVibratoIntensity = function () {};
+      window.setVibratoRate = function () {};
       window.setBowVelocityAttack = function () {};
       window.setBowVelocityRelease = function () {};
       window.setMasterVolume = function () {};

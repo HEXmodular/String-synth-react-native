@@ -77,8 +77,11 @@ export default function VerticalFader({
         .enabled(!disabled)
         .maxPointers(1)
         .minDistance(0)
+        // Prefer vertical drag for the fader; let horizontal ScrollView win on X.
+        .activeOffsetY([-8, 8])
+        .failOffsetX([-12, 12])
         .runOnJS(true)
-        .onBegin((event) => {
+        .onStart((event) => {
           applyY(event.y);
         })
         .onUpdate((event) => {
@@ -99,7 +102,8 @@ export default function VerticalFader({
   return (
     <View
       style={{
-        flex: 1,
+        width: 80,
+        height: "100%",
         minHeight: 0,
         alignItems: "center",
         opacity: fadeContainer ? 0.35 : 1,

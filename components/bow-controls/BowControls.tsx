@@ -9,12 +9,16 @@ import {
   useState,
 } from "react";
 import { View } from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
 
 const DEFAULT_VELOCITY = 0.18;
 const FORCE_MIN = 0.1;
 const FORCE_MAX = 5;
 const DEFAULT_FORCE = FORCE_MIN + FORCE_MAX - 1;
 const DEFAULT_VIBRATO = 0;
+const VIBRATO_RATE_MIN = 1;
+const VIBRATO_RATE_MAX = 10;
+const DEFAULT_VIBRATO_RATE = 5.5;
 const TIME_MIN = 0.01;
 const TIME_MAX = 1;
 const DEFAULT_ATTACK = 0.08;
@@ -67,6 +71,7 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
       setBowVelocity,
       setBowForce,
       setVibratoIntensity,
+      setVibratoRate,
       setBowVelocityAttack,
       setBowVelocityRelease,
       setMasterVolume,
@@ -76,6 +81,7 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
     const [velocity, setVelocity] = useState(DEFAULT_VELOCITY);
     const [force, setForce] = useState(DEFAULT_FORCE);
     const [vibrato, setVibrato] = useState(DEFAULT_VIBRATO);
+    const [vibratoRate, setVibratoRateState] = useState(DEFAULT_VIBRATO_RATE);
     const [attack, setAttack] = useState(DEFAULT_ATTACK);
     const [release, setRelease] = useState(DEFAULT_RELEASE);
     const [masterVolume, setMasterVolumeState] = useState(DEFAULT_MASTER_VOLUME);
@@ -145,6 +151,14 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
       [setVibratoIntensity],
     );
 
+    const handleVibratoRateChange = useCallback(
+      (value: number) => {
+        setVibratoRateState(value);
+        setVibratoRate(value);
+      },
+      [setVibratoRate],
+    );
+
     const handleAttackChange = useCallback(
       (value: number) => {
         setAttack(value);
@@ -197,16 +211,7 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
     }, []);
 
     return (
-      <View
-        style={{
-          flex: 1,
-          flexDirection: "row",
-          justifyContent: "center",
-          gap: 16,
-          paddingHorizontal: 12,
-          paddingVertical: 8,
-        }}
-      >
+      <View className="min-h-0 flex-1 flex-row gap-4 px-3 py-2">
         <BowXyPad
           yLabel="Speed · Y"
           yIcon="speed"
@@ -217,63 +222,82 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
           disabled={disabled}
           onChange={handleSpeedPressureChange}
         />
-        <VerticalFader
-          label="Vibrato"
-          icon="waves"
-          value={vibrato}
-          min={0}
-          max={1}
-          disabled={disabled}
-          onChange={handleVibratoChange}
-        />
-        <VerticalFader
-          label={autoAttack ? "Auto" : "Attack"}
-          icon={autoAttack ? "auto-mode" : "trending-up"}
-          value={attack}
-          min={TIME_MIN}
-          max={TIME_MAX}
-          disabled={disabled || autoAttack}
-          labelDisabled={disabled}
-          labelSelected={autoAttack}
-          onLabelPress={handleAutoAttackToggle}
-          onChange={handleAttackChange}
-        />
-        <VerticalFader
-          label="Release"
-          icon="trending-down"
-          value={release}
-          min={TIME_MIN}
-          max={TIME_MAX}
-          disabled={disabled}
-          onChange={handleReleaseChange}
-        />
-        <VerticalFader
-          label="Predelay"
-          icon="timer"
-          value={predelay}
-          min={PREDELAY_MIN}
-          max={PREDELAY_MAX}
-          disabled={disabled}
-          onChange={handlePredelayChange}
-        />
-        <VerticalFader
-          label="Reverb"
-          icon="blur-on"
-          value={reverbLevel}
-          min={0}
-          max={1}
-          disabled={disabled}
-          onChange={handleReverbLevelChange}
-        />
-        <VerticalFader
-          label="Volume"
-          icon="volume-up"
-          value={masterVolume}
-          min={0}
-          max={1}
-          disabled={disabled}
-          onChange={handleMasterVolumeChange}
-        />
+        <ScrollView
+          horizontal
+          className="min-h-0 flex-1"
+          contentContainerStyle={{
+            gap: 16,
+            height: "100%",
+          }}
+          showsHorizontalScrollIndicator={false}
+        >
+          <VerticalFader
+            label="Vibrato"
+            icon="waves"
+            value={vibrato}
+            min={0}
+            max={1}
+            disabled={disabled}
+            onChange={handleVibratoChange}
+          />
+          <VerticalFader
+            label="Rate"
+            icon="graphic-eq"
+            value={vibratoRate}
+            min={VIBRATO_RATE_MIN}
+            max={VIBRATO_RATE_MAX}
+            disabled={disabled}
+            onChange={handleVibratoRateChange}
+          />
+          <VerticalFader
+            label={autoAttack ? "Auto" : "Attack"}
+            icon={autoAttack ? "auto-mode" : "trending-up"}
+            value={attack}
+            min={TIME_MIN}
+            max={TIME_MAX}
+            disabled={disabled || autoAttack}
+            labelDisabled={disabled}
+            labelSelected={autoAttack}
+            onLabelPress={handleAutoAttackToggle}
+            onChange={handleAttackChange}
+          />
+          <VerticalFader
+            label="Release"
+            icon="trending-down"
+            value={release}
+            min={TIME_MIN}
+            max={TIME_MAX}
+            disabled={disabled}
+            onChange={handleReleaseChange}
+          />
+          <VerticalFader
+            label="Predelay"
+            icon="timer"
+            value={predelay}
+            min={PREDELAY_MIN}
+            max={PREDELAY_MAX}
+            disabled={disabled}
+            onChange={handlePredelayChange}
+          />
+          <VerticalFader
+            label="Reverb"
+            icon="blur-on"
+            value={reverbLevel}
+            min={0}
+            max={1}
+            disabled={disabled}
+            onChange={handleReverbLevelChange}
+          />
+          <VerticalFader
+            label="Volume"
+            icon="volume-up"
+            value={masterVolume}
+            min={0}
+            max={1}
+            disabled={disabled}
+            onChange={handleMasterVolumeChange}
+          />
+        </ScrollView>
       </View>
     );
   },

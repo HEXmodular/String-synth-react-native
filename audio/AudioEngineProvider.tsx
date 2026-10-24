@@ -26,6 +26,7 @@ type EngineHost = Window & {
   setBowVelocity?: (value: number) => void;
   setBowForce?: (value: number) => void;
   setVibratoIntensity?: (value: number) => void;
+  setVibratoRate?: (value: number) => void;
   setBowVelocityAttack?: (value: number) => void;
   setBowVelocityRelease?: (value: number) => void;
   setMasterVolume?: (value: number) => void;
@@ -41,6 +42,7 @@ type AudioEngineValue = {
   setBowVelocity: (value: number) => void;
   setBowForce: (value: number) => void;
   setVibratoIntensity: (value: number) => void;
+  setVibratoRate: (value: number) => void;
   setBowVelocityAttack: (value: number) => void;
   setBowVelocityRelease: (value: number) => void;
   setMasterVolume: (value: number) => void;
@@ -159,6 +161,17 @@ export default function AudioEngineProvider({
 
     webViewRef.current?.injectJavaScript(
       `window.setVibratoIntensity(${value}); true;`,
+    );
+  }, []);
+
+  const publishVibratoRate = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setVibratoRate?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setVibratoRate(${value}); true;`,
     );
   }, []);
 
@@ -310,6 +323,18 @@ export default function AudioEngineProvider({
     [publishVibratoIntensity],
   );
 
+  const setVibratoRate = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishVibratoRate(next);
+    },
+    [publishVibratoRate],
+  );
+
   const setBowVelocityAttack = useCallback(
     (value: number) => {
       const next = finiteNumber(value);
@@ -450,6 +475,7 @@ export default function AudioEngineProvider({
       setBowVelocity,
       setBowForce,
       setVibratoIntensity,
+      setVibratoRate,
       setBowVelocityAttack,
       setBowVelocityRelease,
       setMasterVolume,
@@ -464,6 +490,7 @@ export default function AudioEngineProvider({
       setBowVelocity,
       setBowForce,
       setVibratoIntensity,
+      setVibratoRate,
       setBowVelocityAttack,
       setBowVelocityRelease,
       setMasterVolume,

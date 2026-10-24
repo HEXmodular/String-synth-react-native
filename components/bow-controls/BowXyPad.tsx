@@ -126,7 +126,7 @@ export default function BowXyPad({
 
   return (
     <View
-      className="min-h-0 flex-[2] items-center"
+      className="min-h-0 w-1/3 shrink-0 items-center"
       style={{ opacity: disabled ? 0.35 : 1 }}
     >
       {/* Size box outside GestureDetector — RNGH host often drops flex on Android */}
