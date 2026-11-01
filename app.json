@@ -52,8 +52,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "182047b0-6488-483a-946b-a71fb426da01"
+        "projectId": "54bfd623-86f4-4db5-a45d-e9180539ec34"
       }
-    }
+    },
+    "owner": "ejji"
   }
 }

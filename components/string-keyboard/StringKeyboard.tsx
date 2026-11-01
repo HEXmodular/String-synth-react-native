@@ -13,17 +13,20 @@ import {
   soundingChanges,
   type KeyboardNote,
 } from "@/components/string-keyboard/notes";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Platform,
   Pressable,
   Text,
   View,
   useWindowDimensions,
-  type GestureResponderEvent,
   type LayoutChangeEvent,
-  type PointerEvent,
 } from "react-native";
+import {
+  Gesture,
+  GestureDetector,
+  type TouchData,
+} from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 
 export type { KeyboardNote };
 
@@ -249,74 +252,64 @@ export default function StringKeyboard({
     };
   }, []);
 
-  const trackPointer = useCallback(
-    (event: PointerEvent) => {
-      const { pointerId, offsetX, offsetY } = event.nativeEvent;
-      pointersRef.current.set(pointerId, { x: offsetX, y: offsetY });
-      syncFromPointers();
-    },
-    [syncFromPointers],
-  );
-
-  const handlePointerDown = useCallback(
-    (event: PointerEvent) => {
-      const { pointerId, button, pointerType } = event.nativeEvent;
-      if (pointerType === "mouse" && button !== 0) {
-        return;
-      }
-
-      event.preventDefault();
-      if (typeof event.currentTarget.setPointerCapture === "function") {
-        try {
-          event.currentTarget.setPointerCapture(pointerId);
-        } catch {
-          // The note still tracks while the pointer stays over the grid.
-        }
-      }
-      trackPointer(event);
-    },
-    [trackPointer],
-  );
-
-  const handlePointerMove = useCallback(
-    (event: PointerEvent) => {
-      if (!pointersRef.current.has(event.nativeEvent.pointerId)) {
-        return;
-      }
-
-      trackPointer(event);
-    },
-    [trackPointer],
-  );
-
-  const releasePointer = useCallback(
-    (event: PointerEvent) => {
-      pointersRef.current.delete(event.nativeEvent.pointerId);
-      syncFromPointers();
-    },
-    [syncFromPointers],
-  );
-
   const syncTouches = useCallback(
-    (event: GestureResponderEvent) => {
+    (touches: readonly TouchData[]) => {
       const pointers = pointersRef.current;
-      const touches = event.nativeEvent.touches;
       pointers.clear();
-      if (touches) {
-        for (const touch of touches) {
-          if (!Number.isFinite(touch.locationX) || !Number.isFinite(touch.locationY)) {
-            continue;
-          }
-          const touchId = Number(touch.identifier);
-          if (!Number.isFinite(touchId)) {
-            continue;
-          }
-          pointers.set(touchId, { x: touch.locationX, y: touch.locationY });
+      for (const touch of touches) {
+        if (!Number.isFinite(touch.id) || !Number.isFinite(touch.x) || !Number.isFinite(touch.y)) {
+          continue;
         }
+        pointers.set(touch.id, { x: touch.x, y: touch.y });
       }
       syncFromPointers();
     },
     [syncFromPointers],
+  );
+
+  const clearTouches = useCallback(() => {
+    if (pointersRef.current.size === 0 && pointerMidisRef.current.length === 0) {
+      return;
+    }
+    pointersRef.current.clear();
+    syncFromPointers();
+  }, [syncFromPointers]);
+
+  const keyboardGesture = useMemo(
+    () =>
+      Gesture.Manual()
+        .shouldCancelWhenOutside(false)
+        .onTouchesDown((event, state) => {
+          // setGestureState must run on the UI thread (worklet).
+          state.activate();
+          runOnJS(syncTouches)(copyTouches(event.allTouches));
+        })
+        .onTouchesMove((event) => {
+          runOnJS(syncTouches)(copyTouches(event.allTouches));
+        })
+        .onTouchesUp((event, state) => {
+          // RNGH keeps lifted pointers inside allTouches on UP; numberOfTouches
+          // is already decremented. Filter changedTouches out for the live set.
+          runOnJS(syncTouches)(
+            remainingTouches(event.allTouches, event.changedTouches),
+          );
+          if (event.numberOfTouches === 0) {
+            state.end();
+          }
+        })
+        .onTouchesCancelled((event, state) => {
+          runOnJS(syncTouches)(
+            remainingTouches(event.allTouches, event.changedTouches),
+          );
+          if (event.numberOfTouches === 0) {
+            state.end();
+          }
+        })
+        .onFinalize(() => {
+          // Drop any orphaned pointers if up/cancel events were coalesced.
+          runOnJS(clearTouches)();
+        }),
+    [clearTouches, syncTouches],
   );
 
   const handleStageLayout = useCallback((event: LayoutChangeEvent) => {
@@ -358,25 +351,6 @@ export default function StringKeyboard({
   const gridWidth = columns > 0 ? columns * cellSize + (columns - 1) * KEY_GAP : 0;
   const gridHeight =
     cellSize > 0 ? KEYBOARD_ROW_COUNT * cellSize + (KEYBOARD_ROW_COUNT - 1) * KEY_GAP : 0;
-  const gridTouchProps =
-    Platform.OS === "android"
-      ? {
-          onStartShouldSetResponder: () => true,
-          onMoveShouldSetResponder: () => true,
-          onResponderTerminationRequest: () => false,
-          onResponderGrant: syncTouches,
-          onResponderStart: syncTouches,
-          onResponderMove: syncTouches,
-          onResponderEnd: syncTouches,
-          onResponderRelease: syncTouches,
-          onResponderTerminate: syncTouches,
-        }
-      : {
-          onPointerDown: handlePointerDown,
-          onPointerMove: handlePointerMove,
-          onPointerUp: releasePointer,
-          onPointerCancel: releasePointer,
-        };
 
   if (!expanded) {
     return (
@@ -402,86 +376,85 @@ export default function StringKeyboard({
             style={{ zIndex: 0 }}
           />
           {columns > 0 && cellSize > 0 ? (
-            <View
-              collapsable={false}
-              accessibilityLabel="Keyboard"
-              className="touch-none"
-              style={{
-                width: gridWidth,
-                height: gridHeight,
-                zIndex: 1,
-                ...(Platform.OS === "android"
-                  ? { pointerEvents: "box-only" as const }
-                  : null),
-              }}
-              {...gridTouchProps}
-            >
-              {Array.from({ length: KEYBOARD_ROW_COUNT }, (_, row) => (
-                <View
-                  key={row}
-                  className="flex-row"
-                  style={{
-                    marginBottom: row < KEYBOARD_ROW_COUNT - 1 ? KEY_GAP : 0,
-                    pointerEvents: "none",
-                  }}
-                >
-                  {Array.from({ length: columns }, (_, column) => {
-                    const note = describeNote(cellMidi(visibleOffset, row, column));
-                    const pressed = soundingSet.has(note.midi);
-                    const backgroundColor = pressed
-                      ? note.natural
-                        ? NATURAL_PRESSED_COLOR
-                        : ACCIDENTAL_PRESSED_COLOR
-                      : note.natural
-                        ? NATURAL_COLOR
-                        : ACCIDENTAL_COLOR;
+            <GestureDetector gesture={keyboardGesture}>
+              <View
+                collapsable={false}
+                accessibilityLabel="Keyboard"
+                className="touch-none"
+                style={{
+                  width: gridWidth,
+                  height: gridHeight,
+                  zIndex: 1,
+                  pointerEvents: "box-only",
+                }}
+              >
+                {Array.from({ length: KEYBOARD_ROW_COUNT }, (_, row) => (
+                  <View
+                    key={row}
+                    className="flex-row"
+                    style={{
+                      marginBottom: row < KEYBOARD_ROW_COUNT - 1 ? KEY_GAP : 0,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    {Array.from({ length: columns }, (_, column) => {
+                      const note = describeNote(cellMidi(visibleOffset, row, column));
+                      const pressed = soundingSet.has(note.midi);
+                      const backgroundColor = pressed
+                        ? note.natural
+                          ? NATURAL_PRESSED_COLOR
+                          : ACCIDENTAL_PRESSED_COLOR
+                        : note.natural
+                          ? NATURAL_COLOR
+                          : ACCIDENTAL_COLOR;
 
-                    return (
-                      <View
-                        key={column}
-                        testID={`key-${row}-${column}`}
-                        className="items-center justify-center"
-                        style={{
-                          width: cellSize,
-                          height: cellSize,
-                          marginRight: column < columns - 1 ? KEY_GAP : 0,
-                          backgroundColor,
-                          pointerEvents: "none",
-                        }}
-                      >
-                        {note.natural ? (
-                          <Text
-                            style={{
-                              fontSize: labelSize,
-                              fontWeight: "600",
-                              color: "#081126",
-                              pointerEvents: "none",
-                            }}
-                          >
-                            {note.name}
-                          </Text>
-                        ) : null}
-                        {note.name === "C" ? (
-                          <Text
-                            style={{
-                              position: "absolute",
-                              right: Math.max(4, cellSize * 0.08),
-                              bottom: Math.max(2, cellSize * 0.05),
-                              fontSize: Math.max(11, Math.round(labelSize * 0.42)),
-                              fontWeight: "600",
-                              color: "#081126",
-                              pointerEvents: "none",
-                            }}
-                          >
-                            {midiOctave(note.midi)}
-                          </Text>
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
+                      return (
+                        <View
+                          key={column}
+                          testID={`key-${row}-${column}`}
+                          className="items-center justify-center"
+                          style={{
+                            width: cellSize,
+                            height: cellSize,
+                            marginRight: column < columns - 1 ? KEY_GAP : 0,
+                            backgroundColor,
+                            pointerEvents: "none",
+                          }}
+                        >
+                          {note.natural ? (
+                            <Text
+                              style={{
+                                fontSize: labelSize,
+                                fontWeight: "600",
+                                color: "#081126",
+                                pointerEvents: "none",
+                              }}
+                            >
+                              {note.name}
+                            </Text>
+                          ) : null}
+                          {note.name === "C" ? (
+                            <Text
+                              style={{
+                                position: "absolute",
+                                right: Math.max(4, cellSize * 0.08),
+                                bottom: Math.max(2, cellSize * 0.05),
+                                fontSize: Math.max(11, Math.round(labelSize * 0.42)),
+                                fontWeight: "600",
+                                color: "#081126",
+                                pointerEvents: "none",
+                              }}
+                            >
+                              {midiOctave(note.midi)}
+                            </Text>
+                          ) : null}
+                        </View>
+                      );
+                    })}
+                  </View>
+                ))}
+              </View>
+            </GestureDetector>
           ) : null}
         </View>
 
@@ -514,4 +487,52 @@ function sameNoteSet(left: number[], right: number[]): boolean {
 
   const rightNotes = new Set(right);
   return left.every((midi) => rightNotes.has(midi));
+}
+
+/** Plain copies so touch payloads can cross the UI → JS bridge. */
+function copyTouches(touches: readonly TouchData[]): TouchData[] {
+  "worklet";
+  const next: TouchData[] = [];
+  for (let i = 0; i < touches.length; i += 1) {
+    const touch = touches[i];
+    next.push({
+      id: touch.id,
+      x: touch.x,
+      y: touch.y,
+      absoluteX: touch.absoluteX,
+      absoluteY: touch.absoluteY,
+    });
+  }
+  return next;
+}
+
+/**
+ * On UP/CANCEL RNGH still lists lifted pointers in allTouches.
+ * Strip changedTouches so only fingers that remain down are synced.
+ */
+function remainingTouches(
+  allTouches: readonly TouchData[],
+  changedTouches: readonly TouchData[],
+): TouchData[] {
+  "worklet";
+  const ended: Record<number, true> = {};
+  for (let i = 0; i < changedTouches.length; i += 1) {
+    ended[changedTouches[i].id] = true;
+  }
+
+  const next: TouchData[] = [];
+  for (let i = 0; i < allTouches.length; i += 1) {
+    const touch = allTouches[i];
+    if (ended[touch.id]) {
+      continue;
+    }
+    next.push({
+      id: touch.id,
+      x: touch.x,
+      y: touch.y,
+      absoluteX: touch.absoluteX,
+      absoluteY: touch.absoluteY,
+    });
+  }
+  return next;
 }

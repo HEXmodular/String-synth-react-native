@@ -1,30 +1,59 @@
 import { useAudioEngine } from "@/audio/AudioEngineProvider";
+import { useMidiInput } from "@/audio/useMidiInput";
 import BowControls, {
   type BowControlsHandle,
 } from "@/components/bow-controls/BowControls";
 import StringKeyboard from "@/components/string-keyboard/StringKeyboard";
-import { useRef, useState } from "react";
+import { midiToFrequency } from "@/components/string-keyboard/notes";
+import { useCallback, useRef, useState } from "react";
 import { Platform, Pressable, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function Index() {
   const { resume, noteOn, noteOff } = useAudioEngine();
   const [keyboardExpanded, setKeyboardExpanded] = useState(true);
   const bowControlsRef = useRef<BowControlsHandle>(null);
+  const insets = useSafeAreaInsets();
+
+  const handleNoteOn = useCallback(
+    (midi: number) => {
+      if (Platform.OS !== "web") {
+        resume();
+      }
+      bowControlsRef.current?.prepareNoteOn();
+      noteOn(midi, midiToFrequency(midi));
+    },
+    [noteOn, resume],
+  );
+
+  const handleNoteOff = useCallback(
+    (midi: number) => {
+      noteOff(midi);
+    },
+    [noteOff],
+  );
+
+  useMidiInput({
+    onNoteOn: handleNoteOn,
+    onNoteOff: handleNoteOff,
+  });
 
   return (
-    <View className="flex-1 bg-background">
+    <View
+      className="flex-1 bg-background"
+      style={{
+        paddingTop: insets.top,
+        paddingBottom: insets.bottom,
+        paddingLeft: insets.left,
+        paddingRight: insets.right,
+      }}
+    >
       <StringKeyboard
         voices={4}
         expanded={keyboardExpanded}
         onExpandedChange={setKeyboardExpanded}
-        onNoteOn={(note) => {
-          if (Platform.OS !== "web") {
-            resume();
-          }
-          bowControlsRef.current?.prepareNoteOn();
-          noteOn(note.midi, note.frequency);
-        }}
-        onNoteOff={(note) => noteOff(note.midi)}
+        onNoteOn={(note) => handleNoteOn(note.midi)}
+        onNoteOff={(note) => handleNoteOff(note.midi)}
       />
       <View style={{ flex: 1, minHeight: 0 }}>
         {keyboardExpanded ? (

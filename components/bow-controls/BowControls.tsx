@@ -15,7 +15,7 @@ const DEFAULT_VELOCITY = 0.18;
 const FORCE_MIN = 0.1;
 const FORCE_MAX = 5;
 const DEFAULT_FORCE = FORCE_MIN + FORCE_MAX - 1;
-const DEFAULT_VIBRATO = 0;
+const DEFAULT_VIBRATO = 0.1;
 const VIBRATO_RATE_MIN = 1;
 const VIBRATO_RATE_MAX = 10;
 const DEFAULT_VIBRATO_RATE = 5.5;
@@ -24,6 +24,17 @@ const TIME_MAX = 1;
 const DEFAULT_ATTACK = 0.08;
 const DEFAULT_RELEASE = 0.1;
 const DEFAULT_MASTER_VOLUME = 1;
+const DEFAULT_CHORUS_LEVEL = 0.3;
+const CHORUS_RATE_MIN = 0.1;
+const CHORUS_RATE_MAX = 5;
+const DEFAULT_CHORUS_RATE = 1.5;
+const CHORUS_NOISE_CUTOFF_MIN = 10;
+const CHORUS_NOISE_CUTOFF_MAX = 200;
+const DEFAULT_CHORUS_NOISE_CUTOFF = 50;
+const DEFAULT_CHORUS_DEPTH = 0.5;
+const CHORUS_DELAY_MIN = 0.008;
+const CHORUS_DELAY_MAX = 0.03;
+const DEFAULT_CHORUS_DELAY = 0.012;
 const PREDELAY_MIN = 0;
 const PREDELAY_MAX = 0.2;
 const DEFAULT_PREDELAY = 0.02;
@@ -75,6 +86,11 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
       setBowVelocityAttack,
       setBowVelocityRelease,
       setMasterVolume,
+      setChorusLevel,
+      setChorusRate,
+      setChorusNoiseMod,
+      setChorusDepth,
+      setChorusDelay,
       setPredelay,
       setReverbLevel,
     } = useAudioEngine();
@@ -85,6 +101,14 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
     const [attack, setAttack] = useState(DEFAULT_ATTACK);
     const [release, setRelease] = useState(DEFAULT_RELEASE);
     const [masterVolume, setMasterVolumeState] = useState(DEFAULT_MASTER_VOLUME);
+    const [chorusLevel, setChorusLevelState] = useState(DEFAULT_CHORUS_LEVEL);
+    const [chorusRate, setChorusRateState] = useState(DEFAULT_CHORUS_RATE);
+    const [chorusNoiseCutoff, setChorusNoiseCutoffState] = useState(
+      DEFAULT_CHORUS_NOISE_CUTOFF,
+    );
+    const [chorusNoiseMod, setChorusNoiseModState] = useState(false);
+    const [chorusDepth, setChorusDepthState] = useState(DEFAULT_CHORUS_DEPTH);
+    const [chorusDelay, setChorusDelayState] = useState(DEFAULT_CHORUS_DELAY);
     const [predelay, setPredelayState] = useState(DEFAULT_PREDELAY);
     const [reverbLevel, setReverbLevelState] = useState(DEFAULT_REVERB_LEVEL);
     const [autoAttack, setAutoAttack] = useState(false);
@@ -183,6 +207,51 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
       [setMasterVolume],
     );
 
+    const handleChorusLevelChange = useCallback(
+      (value: number) => {
+        setChorusLevelState(value);
+        setChorusLevel(value);
+      },
+      [setChorusLevel],
+    );
+
+    const handleChorusRateChange = useCallback(
+      (value: number) => {
+        if (chorusNoiseMod) {
+          setChorusNoiseCutoffState(value);
+        } else {
+          setChorusRateState(value);
+        }
+        setChorusRate(value);
+      },
+      [chorusNoiseMod, setChorusRate],
+    );
+
+    const handleChorusNoiseModToggle = useCallback(() => {
+      setChorusNoiseModState((current) => {
+        const next = !current;
+        setChorusNoiseMod(next);
+        setChorusRate(next ? chorusNoiseCutoff : chorusRate);
+        return next;
+      });
+    }, [chorusNoiseCutoff, chorusRate, setChorusNoiseMod, setChorusRate]);
+
+    const handleChorusDepthChange = useCallback(
+      (value: number) => {
+        setChorusDepthState(value);
+        setChorusDepth(value);
+      },
+      [setChorusDepth],
+    );
+
+    const handleChorusDelayChange = useCallback(
+      (value: number) => {
+        setChorusDelayState(value);
+        setChorusDelay(value);
+      },
+      [setChorusDelay],
+    );
+
     const handlePredelayChange = useCallback(
       (value: number) => {
         setPredelayState(value);
@@ -269,6 +338,45 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
             max={TIME_MAX}
             disabled={disabled}
             onChange={handleReleaseChange}
+          />
+          <VerticalFader
+            label="Chorus"
+            icon="library-music"
+            value={chorusLevel}
+            min={0}
+            max={1}
+            disabled={disabled}
+            onChange={handleChorusLevelChange}
+          />
+          <VerticalFader
+            label={chorusNoiseMod ? "Noise" : "Rate"}
+            icon={chorusNoiseMod ? "grain" : "sync"}
+            value={chorusNoiseMod ? chorusNoiseCutoff : chorusRate}
+            min={chorusNoiseMod ? CHORUS_NOISE_CUTOFF_MIN : CHORUS_RATE_MIN}
+            max={chorusNoiseMod ? CHORUS_NOISE_CUTOFF_MAX : CHORUS_RATE_MAX}
+            disabled={disabled}
+            labelDisabled={disabled}
+            labelSelected={chorusNoiseMod}
+            onLabelPress={handleChorusNoiseModToggle}
+            onChange={handleChorusRateChange}
+          />
+          <VerticalFader
+            label="Depth"
+            icon="swap-vert"
+            value={chorusDepth}
+            min={0}
+            max={1}
+            disabled={disabled}
+            onChange={handleChorusDepthChange}
+          />
+          <VerticalFader
+            label="Delay"
+            icon="hourglass-empty"
+            value={chorusDelay}
+            min={CHORUS_DELAY_MIN}
+            max={CHORUS_DELAY_MAX}
+            disabled={disabled}
+            onChange={handleChorusDelayChange}
           />
           <VerticalFader
             label="Predelay"

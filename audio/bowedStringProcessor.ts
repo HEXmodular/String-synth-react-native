@@ -5,7 +5,7 @@ class BowedStringProcessor extends AudioWorkletProcessor {
       { name: 'frequency', defaultValue: 440, minValue: 20, maxValue: 5000 },
       { name: 'bowForce', defaultValue: 1, minValue: 0.1, maxValue: 5 },
       { name: 'bowVelocity', defaultValue: 0, minValue: 0, maxValue: 1 },
-      { name: 'vibratoDepth', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'vibratoDepth', defaultValue: 0.1, minValue: 0, maxValue: 1 },
       { name: 'vibratoRate', defaultValue: 5.5, minValue: 1, maxValue: 10 },
     ];
   }

@@ -6,10 +6,25 @@ import {
   useEffect,
   useMemo,
   useRef,
+  type ComponentType,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { Platform, View } from "react-native";
-import { WebView } from "react-native-webview";
+import {
+  WebView as NativeWebView,
+  type WebViewMessageEvent,
+  type WebViewProps,
+} from "react-native-webview";
+
+/** react-native-webview@14.0.1 defaults the class generic to `undefined`, collapsing props to `never`. */
+type WebViewHandle = {
+  injectJavaScript: (script: string) => void;
+};
+
+const WebView = NativeWebView as unknown as ComponentType<
+  WebViewProps & { ref?: RefObject<WebViewHandle | null> }
+>;
 
 const ENGINE_HTML = createEngineHtml();
 
@@ -30,6 +45,11 @@ type EngineHost = Window & {
   setBowVelocityAttack?: (value: number) => void;
   setBowVelocityRelease?: (value: number) => void;
   setMasterVolume?: (value: number) => void;
+  setChorusLevel?: (value: number) => void;
+  setChorusRate?: (value: number) => void;
+  setChorusNoiseMod?: (enabled: number) => void;
+  setChorusDepth?: (value: number) => void;
+  setChorusDelay?: (value: number) => void;
   setPredelay?: (value: number) => void;
   setReverbLevel?: (value: number) => void;
 };
@@ -46,6 +66,11 @@ type AudioEngineValue = {
   setBowVelocityAttack: (value: number) => void;
   setBowVelocityRelease: (value: number) => void;
   setMasterVolume: (value: number) => void;
+  setChorusLevel: (value: number) => void;
+  setChorusRate: (value: number) => void;
+  setChorusNoiseMod: (enabled: boolean) => void;
+  setChorusDepth: (value: number) => void;
+  setChorusDelay: (value: number) => void;
   setPredelay: (value: number) => void;
   setReverbLevel: (value: number) => void;
 };
@@ -97,7 +122,7 @@ type AudioEngineProviderProps = {
 export default function AudioEngineProvider({
   children,
 }: AudioEngineProviderProps) {
-  const webViewRef = useRef<WebView>(null);
+  const webViewRef = useRef<WebViewHandle>(null);
   const readyRef = useRef(false);
   const notesRef = useRef<BowNoteCall[]>([]);
   const heldRef = useRef(new Map<number, number>());
@@ -205,6 +230,62 @@ export default function AudioEngineProvider({
 
     webViewRef.current?.injectJavaScript(
       `window.setMasterVolume(${value}); true;`,
+    );
+  }, []);
+
+  const publishChorusLevel = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setChorusLevel?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setChorusLevel(${value}); true;`,
+    );
+  }, []);
+
+  const publishChorusRate = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setChorusRate?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setChorusRate(${value}); true;`,
+    );
+  }, []);
+
+  const publishChorusNoiseMod = useCallback((enabled: boolean) => {
+    const flag = enabled ? 1 : 0;
+    if (Platform.OS === "web") {
+      webEngine().setChorusNoiseMod?.(flag);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setChorusNoiseMod(${flag}); true;`,
+    );
+  }, []);
+
+  const publishChorusDepth = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setChorusDepth?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setChorusDepth(${value}); true;`,
+    );
+  }, []);
+
+  const publishChorusDelay = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setChorusDelay?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setChorusDelay(${value}); true;`,
     );
   }, []);
 
@@ -371,6 +452,61 @@ export default function AudioEngineProvider({
     [publishMasterVolume],
   );
 
+  const setChorusLevel = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishChorusLevel(next);
+    },
+    [publishChorusLevel],
+  );
+
+  const setChorusRate = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishChorusRate(next);
+    },
+    [publishChorusRate],
+  );
+
+  const setChorusNoiseMod = useCallback(
+    (enabled: boolean) => {
+      publishChorusNoiseMod(Boolean(enabled));
+    },
+    [publishChorusNoiseMod],
+  );
+
+  const setChorusDepth = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishChorusDepth(next);
+    },
+    [publishChorusDepth],
+  );
+
+  const setChorusDelay = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishChorusDelay(next);
+    },
+    [publishChorusDelay],
+  );
+
   const setPredelay = useCallback(
     (value: number) => {
       const next = finiteNumber(value);
@@ -479,6 +615,11 @@ export default function AudioEngineProvider({
       setBowVelocityAttack,
       setBowVelocityRelease,
       setMasterVolume,
+      setChorusLevel,
+      setChorusRate,
+      setChorusNoiseMod,
+      setChorusDepth,
+      setChorusDelay,
       setPredelay,
       setReverbLevel,
     }),
@@ -494,6 +635,11 @@ export default function AudioEngineProvider({
       setBowVelocityAttack,
       setBowVelocityRelease,
       setMasterVolume,
+      setChorusLevel,
+      setChorusRate,
+      setChorusNoiseMod,
+      setChorusDepth,
+      setChorusDelay,
       setPredelay,
       setReverbLevel,
     ],
@@ -517,7 +663,9 @@ export default function AudioEngineProvider({
               allowsInlineMediaPlayback
               mediaPlaybackRequiresUserAction={false}
               onLoadEnd={handleLoadEnd}
-              onMessage={(event) => handleEngineMessage(event.nativeEvent.data)}
+              onMessage={(event: WebViewMessageEvent) =>
+                handleEngineMessage(event.nativeEvent.data)
+              }
             />
           </View>
         )}

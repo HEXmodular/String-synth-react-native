@@ -8,7 +8,7 @@ export function createEngineScript() {
   const processorSource = JSON.stringify(
     bowedStringProcessorSource + "\n" + fdnReverbProcessorSource,
   );
-  const fdnLines = FDN_LINES === 4 ? 4 : 8;
+  const fdnLines = FDN_LINES;
 
   return `
 (function () {
@@ -25,6 +25,11 @@ export function createEngineScript() {
     window.setBowVelocityAttack = function () {};
     window.setBowVelocityRelease = function () {};
     window.setMasterVolume = function () {};
+    window.setChorusLevel = function () {};
+    window.setChorusRate = function () {};
+    window.setChorusNoiseMod = function () {};
+    window.setChorusDepth = function () {};
+    window.setChorusDelay = function () {};
     window.setPredelay = function () {};
     window.setReverbLevel = function () {};
     return;
@@ -39,8 +44,18 @@ export function createEngineScript() {
 
   var MAX_VOICES = 16;
   var FDN_LINES = ${fdnLines};
+  var CHORUS_DEPTH_MAX = 0.005;
   var mixer = null;
   var master = null;
+  var chorusDelayL = null;
+  var chorusDelayR = null;
+  var chorusLfo = null;
+  var chorusLfoDepthL = null;
+  var chorusLfoDepthR = null;
+  var chorusSineGate = null;
+  var chorusNoiseGate = null;
+  var chorusNoiseFilter = null;
+  var chorusWet = null;
   var predelay = null;
   var reverbWet = null;
   var voices = [];
@@ -48,11 +63,17 @@ export function createEngineScript() {
   var pending = [];
   var bowVelocity = 0.18;
   var bowForce = 1;
-  var vibratoIntensity = 0;
+  var vibratoIntensity = 0.1;
   var vibratoRate = 5.5;
   var velocityAttack = 0.08;
   var velocityRelease = 0.1;
   var masterVolume = 1;
+  var chorusLevel = 0.3;
+  var chorusRate = 1.5;
+  var chorusNoiseCutoff = 50;
+  var chorusNoiseMod = false;
+  var chorusDepth = 0.5;
+  var chorusDelayTime = 0.012;
   var predelayTime = 0.02;
   var reverbLevel = 0.28;
 
@@ -237,6 +258,65 @@ export function createEngineScript() {
     master.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
   };
 
+  window.setChorusLevel = function (value) {
+    chorusLevel = clamp(finite(value, chorusLevel), 0, 1);
+    if (!chorusWet) {
+      return;
+    }
+    chorusWet.gain.setValueAtTime(chorusLevel, audioCtx.currentTime);
+  };
+
+  window.setChorusRate = function (value) {
+    if (chorusNoiseMod) {
+      chorusNoiseCutoff = clamp(finite(value, chorusNoiseCutoff), 10, 200);
+      if (!chorusNoiseFilter) {
+        return;
+      }
+      chorusNoiseFilter.frequency.setValueAtTime(
+        chorusNoiseCutoff,
+        audioCtx.currentTime,
+      );
+      return;
+    }
+
+    chorusRate = clamp(finite(value, chorusRate), 0.1, 5);
+    if (!chorusLfo) {
+      return;
+    }
+    chorusLfo.frequency.setValueAtTime(chorusRate, audioCtx.currentTime);
+  };
+
+  window.setChorusNoiseMod = function (value) {
+    chorusNoiseMod = !!finite(value, chorusNoiseMod ? 1 : 0);
+    if (!chorusSineGate || !chorusNoiseGate) {
+      return;
+    }
+    var now = audioCtx.currentTime;
+    chorusSineGate.gain.setValueAtTime(chorusNoiseMod ? 0 : 1, now);
+    chorusNoiseGate.gain.setValueAtTime(chorusNoiseMod ? 1 : 0, now);
+  };
+
+  window.setChorusDepth = function (value) {
+    chorusDepth = clamp(finite(value, chorusDepth), 0, 1);
+    var depthSeconds = chorusDepth * CHORUS_DEPTH_MAX;
+    if (!chorusLfoDepthL || !chorusLfoDepthR) {
+      return;
+    }
+    var now = audioCtx.currentTime;
+    chorusLfoDepthL.gain.setValueAtTime(depthSeconds, now);
+    chorusLfoDepthR.gain.setValueAtTime(depthSeconds, now);
+  };
+
+  window.setChorusDelay = function (value) {
+    chorusDelayTime = clamp(finite(value, chorusDelayTime), 0.008, 0.03);
+    if (!chorusDelayL || !chorusDelayR) {
+      return;
+    }
+    var now = audioCtx.currentTime;
+    chorusDelayL.delayTime.setValueAtTime(chorusDelayTime, now);
+    chorusDelayR.delayTime.setValueAtTime(chorusDelayTime, now);
+  };
+
   window.setPredelay = function (value) {
     predelayTime = clamp(finite(value, predelayTime), 0, 0.2);
     if (!predelay) {
@@ -334,6 +414,71 @@ export function createEngineScript() {
       master = audioCtx.createGain();
       master.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
 
+      // Stereo chorus: dual DelayNodes modulated by opposite-phase LFOs
+      var chorusOut = audioCtx.createGain();
+      var chorusDry = audioCtx.createGain();
+      chorusDry.gain.setValueAtTime(1, audioCtx.currentTime);
+      chorusWet = audioCtx.createGain();
+      chorusWet.gain.setValueAtTime(chorusLevel, audioCtx.currentTime);
+
+      chorusDelayL = audioCtx.createDelay(0.05);
+      chorusDelayR = audioCtx.createDelay(0.05);
+      chorusDelayL.delayTime.setValueAtTime(chorusDelayTime, audioCtx.currentTime);
+      chorusDelayR.delayTime.setValueAtTime(chorusDelayTime, audioCtx.currentTime);
+
+      var chorusMerger = audioCtx.createChannelMerger(2);
+      chorusLfo = audioCtx.createOscillator();
+      chorusLfo.type = "sine";
+      chorusLfo.frequency.setValueAtTime(chorusRate, audioCtx.currentTime);
+
+      var depthSeconds = chorusDepth * CHORUS_DEPTH_MAX;
+      chorusLfoDepthL = audioCtx.createGain();
+      chorusLfoDepthR = audioCtx.createGain();
+      chorusLfoDepthL.gain.setValueAtTime(depthSeconds, audioCtx.currentTime);
+      chorusLfoDepthR.gain.setValueAtTime(depthSeconds, audioCtx.currentTime);
+      var chorusLfoInvert = audioCtx.createGain();
+      chorusLfoInvert.gain.setValueAtTime(-1, audioCtx.currentTime);
+
+      var chorusModBus = audioCtx.createGain();
+      chorusSineGate = audioCtx.createGain();
+      chorusNoiseGate = audioCtx.createGain();
+      chorusSineGate.gain.setValueAtTime(chorusNoiseMod ? 0 : 1, audioCtx.currentTime);
+      chorusNoiseGate.gain.setValueAtTime(chorusNoiseMod ? 1 : 0, audioCtx.currentTime);
+
+      var noiseLength = Math.floor(audioCtx.sampleRate * 2);
+      var noiseBuffer = audioCtx.createBuffer(1, noiseLength, audioCtx.sampleRate);
+      var noiseData = noiseBuffer.getChannelData(0);
+      for (var ni = 0; ni < noiseLength; ni++) {
+        noiseData[ni] = Math.random() * 2 - 1;
+      }
+      var chorusNoise = audioCtx.createBufferSource();
+      chorusNoise.buffer = noiseBuffer;
+      chorusNoise.loop = true;
+
+      chorusNoiseFilter = audioCtx.createBiquadFilter();
+      chorusNoiseFilter.type = "lowpass";
+      chorusNoiseFilter.frequency.setValueAtTime(
+        chorusNoiseCutoff,
+        audioCtx.currentTime,
+      );
+      chorusNoiseFilter.Q.setValueAtTime(0.707, audioCtx.currentTime);
+      var chorusNoiseMakeup = audioCtx.createGain();
+      chorusNoiseMakeup.gain.setValueAtTime(5, audioCtx.currentTime);
+
+      chorusLfo.connect(chorusSineGate);
+      chorusSineGate.connect(chorusModBus);
+      chorusNoise.connect(chorusNoiseFilter);
+      chorusNoiseFilter.connect(chorusNoiseMakeup);
+      chorusNoiseMakeup.connect(chorusNoiseGate);
+      chorusNoiseGate.connect(chorusModBus);
+      chorusModBus.connect(chorusLfoDepthL);
+      chorusLfoDepthL.connect(chorusDelayL.delayTime);
+      chorusModBus.connect(chorusLfoInvert);
+      chorusLfoInvert.connect(chorusLfoDepthR);
+      chorusLfoDepthR.connect(chorusDelayR.delayTime);
+      chorusLfo.start();
+      chorusNoise.start();
+
       predelay = audioCtx.createDelay(0.25);
       predelay.delayTime.setValueAtTime(predelayTime, audioCtx.currentTime);
 
@@ -350,10 +495,18 @@ export function createEngineScript() {
       reverbWet.gain.setValueAtTime(reverbLevel, audioCtx.currentTime);
 
       mixer.connect(bodyFilter);
-      // Dry path
-      bodyFilter.connect(master);
+      // Chorus insert → dry + stereo wet
+      bodyFilter.connect(chorusDry);
+      chorusDry.connect(chorusOut);
+      bodyFilter.connect(chorusDelayL);
+      bodyFilter.connect(chorusDelayR);
+      chorusDelayL.connect(chorusMerger, 0, 0);
+      chorusDelayR.connect(chorusMerger, 0, 1);
+      chorusMerger.connect(chorusWet);
+      chorusWet.connect(chorusOut);
+      chorusOut.connect(master);
       // Wet: single FDN → stereo out (no per-channel FDN)
-      bodyFilter.connect(predelay);
+      chorusOut.connect(predelay);
       predelay.connect(fdn);
       fdn.connect(reverbWet);
       reverbWet.connect(master);
@@ -383,6 +536,11 @@ export function createEngineScript() {
       window.setBowVelocityAttack = function () {};
       window.setBowVelocityRelease = function () {};
       window.setMasterVolume = function () {};
+      window.setChorusLevel = function () {};
+      window.setChorusRate = function () {};
+      window.setChorusNoiseMod = function () {};
+      window.setChorusDepth = function () {};
+      window.setChorusDelay = function () {};
       window.setPredelay = function () {};
       window.setReverbLevel = function () {};
       if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
