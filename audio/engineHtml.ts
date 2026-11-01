@@ -45,6 +45,8 @@ export function createEngineScript() {
   var MAX_VOICES = 16;
   var FDN_LINES = ${fdnLines};
   var CHORUS_DEPTH_MAX = 0.005;
+  var PREDELAY_LFO_RATE = 0.75;
+  var PREDELAY_LFO_AMP = 0.005;
   var mixer = null;
   var master = null;
   var chorusDelayL = null;
@@ -57,25 +59,27 @@ export function createEngineScript() {
   var chorusNoiseFilter = null;
   var chorusWet = null;
   var predelay = null;
+  var predelayLfo = null;
+  var predelayLfoDepth = null;
   var reverbWet = null;
   var voices = [];
   var ready = false;
   var pending = [];
-  var bowVelocity = 0.18;
-  var bowForce = 1;
-  var vibratoIntensity = 0.1;
-  var vibratoRate = 5.5;
+  var bowVelocity = 0.134;
+  var bowForce = 4.3;
+  var vibratoIntensity = 0.01;
+  var vibratoRate = 1.03;
   var velocityAttack = 0.08;
   var velocityRelease = 0.1;
-  var masterVolume = 1;
-  var chorusLevel = 0.3;
+  var masterVolume = 0.75;
+  var chorusLevel = 0.7;
   var chorusRate = 1.5;
-  var chorusNoiseCutoff = 50;
-  var chorusNoiseMod = false;
-  var chorusDepth = 0.5;
-  var chorusDelayTime = 0.012;
-  var predelayTime = 0.02;
-  var reverbLevel = 0.28;
+  var chorusNoiseCutoff = 17.2;
+  var chorusNoiseMod = true;
+  var chorusDepth = 0.117;
+  var chorusDelayTime = 0.028;
+  var predelayTime = 0.167;
+  var reverbLevel = 0.86;
 
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
@@ -322,7 +326,11 @@ export function createEngineScript() {
     if (!predelay) {
       return;
     }
-    predelay.delayTime.setValueAtTime(predelayTime, audioCtx.currentTime);
+    var now = audioCtx.currentTime;
+    predelay.delayTime.setValueAtTime(predelayTime, now);
+    if (predelayLfoDepth) {
+      predelayLfoDepth.gain.setValueAtTime(predelayTime * PREDELAY_LFO_AMP, now);
+    }
   };
 
   window.setReverbLevel = function (value) {
@@ -481,6 +489,18 @@ export function createEngineScript() {
 
       predelay = audioCtx.createDelay(0.25);
       predelay.delayTime.setValueAtTime(predelayTime, audioCtx.currentTime);
+
+      predelayLfo = audioCtx.createOscillator();
+      predelayLfo.type = "sine";
+      predelayLfo.frequency.setValueAtTime(PREDELAY_LFO_RATE, audioCtx.currentTime);
+      predelayLfoDepth = audioCtx.createGain();
+      predelayLfoDepth.gain.setValueAtTime(
+        predelayTime * PREDELAY_LFO_AMP,
+        audioCtx.currentTime,
+      );
+      predelayLfo.connect(predelayLfoDepth);
+      predelayLfoDepth.connect(predelay.delayTime);
+      predelayLfo.start();
 
       var fdn = new AudioWorkletNode(audioCtx, "fdn-reverb-processor", {
         numberOfInputs: 1,

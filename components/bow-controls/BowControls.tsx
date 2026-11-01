@@ -11,34 +11,35 @@ import {
 import { View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 
-const DEFAULT_VELOCITY = 0.18;
+const DEFAULT_VELOCITY = 0.134;
 const FORCE_MIN = 0.1;
 const FORCE_MAX = 5;
-const DEFAULT_FORCE = FORCE_MIN + FORCE_MAX - 1;
-const DEFAULT_VIBRATO = 0.1;
+const DEFAULT_FORCE = 0.8;
+const DEFAULT_VIBRATO = 0.01;
 const VIBRATO_RATE_MIN = 1;
 const VIBRATO_RATE_MAX = 10;
-const DEFAULT_VIBRATO_RATE = 5.5;
+const DEFAULT_VIBRATO_RATE = 1.03;
 const TIME_MIN = 0.01;
 const TIME_MAX = 1;
 const DEFAULT_ATTACK = 0.08;
 const DEFAULT_RELEASE = 0.1;
-const DEFAULT_MASTER_VOLUME = 1;
-const DEFAULT_CHORUS_LEVEL = 0.3;
+const DEFAULT_MASTER_VOLUME = 0.75;
+const DEFAULT_CHORUS_LEVEL = 0.7;
 const CHORUS_RATE_MIN = 0.1;
 const CHORUS_RATE_MAX = 5;
 const DEFAULT_CHORUS_RATE = 1.5;
 const CHORUS_NOISE_CUTOFF_MIN = 10;
 const CHORUS_NOISE_CUTOFF_MAX = 200;
-const DEFAULT_CHORUS_NOISE_CUTOFF = 50;
-const DEFAULT_CHORUS_DEPTH = 0.5;
+const DEFAULT_CHORUS_NOISE_CUTOFF = 17.2;
+const DEFAULT_CHORUS_NOISE_MOD = true;
+const DEFAULT_CHORUS_DEPTH = 0.117;
 const CHORUS_DELAY_MIN = 0.008;
 const CHORUS_DELAY_MAX = 0.03;
-const DEFAULT_CHORUS_DELAY = 0.012;
+const DEFAULT_CHORUS_DELAY = 0.028;
 const PREDELAY_MIN = 0;
 const PREDELAY_MAX = 0.2;
-const DEFAULT_PREDELAY = 0.02;
-const DEFAULT_REVERB_LEVEL = 0.28;
+const DEFAULT_PREDELAY = 0.167;
+const DEFAULT_REVERB_LEVEL = 0.86;
 
 /** IOI (s) at/below this → shortest attack. */
 const AUTO_ATTACK_FAST_IOI = 0.1;
@@ -106,7 +107,9 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
     const [chorusNoiseCutoff, setChorusNoiseCutoffState] = useState(
       DEFAULT_CHORUS_NOISE_CUTOFF,
     );
-    const [chorusNoiseMod, setChorusNoiseModState] = useState(false);
+    const [chorusNoiseMod, setChorusNoiseModState] = useState(
+      DEFAULT_CHORUS_NOISE_MOD,
+    );
     const [chorusDepth, setChorusDepthState] = useState(DEFAULT_CHORUS_DEPTH);
     const [chorusDelay, setChorusDelayState] = useState(DEFAULT_CHORUS_DELAY);
     const [predelay, setPredelayState] = useState(DEFAULT_PREDELAY);
