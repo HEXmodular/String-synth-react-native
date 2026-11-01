@@ -34,6 +34,8 @@ type StringKeyboardProps = {
   voices?: number;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
+  /** MIDI notes held on an external controller — shown in green. */
+  midiHeld?: readonly number[];
   onNoteOn?: (note: KeyboardNote) => void;
   onNoteOff?: (note: KeyboardNote) => void;
 };
@@ -60,11 +62,14 @@ const NATURAL_COLOR = "#e7edf7";
 const ACCIDENTAL_COLOR = "#152038";
 const NATURAL_PRESSED_COLOR = "#ea7a53";
 const ACCIDENTAL_PRESSED_COLOR = "#8a4034";
+const NATURAL_MIDI_COLOR = "#3dba7a";
+const ACCIDENTAL_MIDI_COLOR = "#1f7a4d";
 
 export default function StringKeyboard({
   voices = 4,
   expanded,
   onExpandedChange,
+  midiHeld = [],
   onNoteOn,
   onNoteOff,
 }: StringKeyboardProps) {
@@ -347,6 +352,7 @@ export default function StringKeyboard({
   const canShiftUp = columns > 0 && visibleOffset < limits.max;
   const canShiftDown = columns > 0 && visibleOffset > limits.min;
   const soundingSet = new Set(sounding);
+  const midiHeldSet = useMemo(() => new Set(midiHeld), [midiHeld]);
   const labelSize = Math.max(14, Math.round(cellSize * 0.32));
   const gridWidth = columns > 0 ? columns * cellSize + (columns - 1) * KEY_GAP : 0;
   const gridHeight =
@@ -399,14 +405,19 @@ export default function StringKeyboard({
                   >
                     {Array.from({ length: columns }, (_, column) => {
                       const note = describeNote(cellMidi(visibleOffset, row, column));
+                      const fromMidi = midiHeldSet.has(note.midi);
                       const pressed = soundingSet.has(note.midi);
-                      const backgroundColor = pressed
+                      const backgroundColor = fromMidi
                         ? note.natural
-                          ? NATURAL_PRESSED_COLOR
-                          : ACCIDENTAL_PRESSED_COLOR
-                        : note.natural
-                          ? NATURAL_COLOR
-                          : ACCIDENTAL_COLOR;
+                          ? NATURAL_MIDI_COLOR
+                          : ACCIDENTAL_MIDI_COLOR
+                        : pressed
+                          ? note.natural
+                            ? NATURAL_PRESSED_COLOR
+                            : ACCIDENTAL_PRESSED_COLOR
+                          : note.natural
+                            ? NATURAL_COLOR
+                            : ACCIDENTAL_COLOR;
 
                       return (
                         <View

@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 export default function Index() {
   const { resume, noteOn, noteOff } = useAudioEngine();
   const [keyboardExpanded, setKeyboardExpanded] = useState(true);
+  const [midiHeld, setMidiHeld] = useState<number[]>([]);
   const bowControlsRef = useRef<BowControlsHandle>(null);
   const insets = useSafeAreaInsets();
 
@@ -33,9 +34,27 @@ export default function Index() {
     [noteOff],
   );
 
+  const handleMidiNoteOn = useCallback(
+    (midi: number) => {
+      setMidiHeld((current) =>
+        current.includes(midi) ? current : [...current, midi],
+      );
+      handleNoteOn(midi);
+    },
+    [handleNoteOn],
+  );
+
+  const handleMidiNoteOff = useCallback(
+    (midi: number) => {
+      setMidiHeld((current) => current.filter((held) => held !== midi));
+      handleNoteOff(midi);
+    },
+    [handleNoteOff],
+  );
+
   useMidiInput({
-    onNoteOn: handleNoteOn,
-    onNoteOff: handleNoteOff,
+    onNoteOn: handleMidiNoteOn,
+    onNoteOff: handleMidiNoteOff,
   });
 
   return (
@@ -52,6 +71,7 @@ export default function Index() {
         voices={4}
         expanded={keyboardExpanded}
         onExpandedChange={setKeyboardExpanded}
+        midiHeld={midiHeld}
         onNoteOn={(note) => handleNoteOn(note.midi)}
         onNoteOff={(note) => handleNoteOff(note.midi)}
       />
