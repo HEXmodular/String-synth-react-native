@@ -1,45 +1,31 @@
-import { useAudioEngine } from "@/audio/AudioEngineProvider";
+import { useSynthSettings } from "@/synth/SynthSettingsProvider";
 import BowXyPad from "@/components/bow-controls/BowXyPad";
 import VerticalFader from "@/components/bow-controls/VerticalFader";
+import {
+  CHORUS_DELAY_MAX,
+  CHORUS_DELAY_MIN,
+  CHORUS_NOISE_CUTOFF_MAX,
+  CHORUS_NOISE_CUTOFF_MIN,
+  CHORUS_RATE_MAX,
+  CHORUS_RATE_MIN,
+  FORCE_MAX,
+  FORCE_MIN,
+  PREDELAY_MAX,
+  PREDELAY_MIN,
+  TIME_MAX,
+  TIME_MIN,
+  VIBRATO_RATE_MAX,
+  VIBRATO_RATE_MIN,
+  clamp,
+} from "@/synth/parameters";
 import {
   forwardRef,
   useCallback,
   useImperativeHandle,
   useRef,
-  useState,
 } from "react";
 import { View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
-
-const DEFAULT_VELOCITY = 0.134;
-const FORCE_MIN = 0.1;
-const FORCE_MAX = 5;
-const DEFAULT_FORCE = 0.8;
-const DEFAULT_VIBRATO = 0.01;
-const VIBRATO_RATE_MIN = 1;
-const VIBRATO_RATE_MAX = 10;
-const DEFAULT_VIBRATO_RATE = 1.03;
-const TIME_MIN = 0.01;
-const TIME_MAX = 1;
-const DEFAULT_ATTACK = 0.08;
-const DEFAULT_RELEASE = 0.1;
-const DEFAULT_MASTER_VOLUME = 0.75;
-const DEFAULT_CHORUS_LEVEL = 0.7;
-const CHORUS_RATE_MIN = 0.1;
-const CHORUS_RATE_MAX = 5;
-const DEFAULT_CHORUS_RATE = 1.5;
-const CHORUS_NOISE_CUTOFF_MIN = 10;
-const CHORUS_NOISE_CUTOFF_MAX = 200;
-const DEFAULT_CHORUS_NOISE_CUTOFF = 17.2;
-const DEFAULT_CHORUS_NOISE_MOD = true;
-const DEFAULT_CHORUS_DEPTH = 0.117;
-const CHORUS_DELAY_MIN = 0.008;
-const CHORUS_DELAY_MAX = 0.03;
-const DEFAULT_CHORUS_DELAY = 0.028;
-const PREDELAY_MIN = 0;
-const PREDELAY_MAX = 0.2;
-const DEFAULT_PREDELAY = 0.167;
-const DEFAULT_REVERB_LEVEL = 0.86;
 
 /** IOI (s) at/below this → shortest attack. */
 const AUTO_ATTACK_FAST_IOI = 0.1;
@@ -48,14 +34,6 @@ const AUTO_ATTACK_SLOW_IOI = 0.9;
 /** Ignore gaps longer than this (phrase pauses). */
 const AUTO_ATTACK_MAX_IOI = 2;
 const AUTO_ATTACK_WINDOW = 4;
-
-function invertForce(value: number) {
-  return FORCE_MIN + FORCE_MAX - value;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
 
 function attackFromIoi(ioiSeconds: number) {
   const t =
@@ -80,49 +58,21 @@ type BowControlsProps = {
 const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
   function BowControls({ disabled = false }, ref) {
     const {
-      setBowVelocity,
-      setBowForce,
-      setVibratoIntensity,
-      setVibratoRate,
-      setBowVelocityAttack,
-      setBowVelocityRelease,
-      setMasterVolume,
-      setChorusLevel,
-      setChorusRate,
-      setChorusNoiseMod,
-      setChorusDepth,
-      setChorusDelay,
-      setPredelay,
-      setReverbLevel,
-    } = useAudioEngine();
-    const [velocity, setVelocity] = useState(DEFAULT_VELOCITY);
-    const [force, setForce] = useState(DEFAULT_FORCE);
-    const [vibrato, setVibrato] = useState(DEFAULT_VIBRATO);
-    const [vibratoRate, setVibratoRateState] = useState(DEFAULT_VIBRATO_RATE);
-    const [attack, setAttack] = useState(DEFAULT_ATTACK);
-    const [release, setRelease] = useState(DEFAULT_RELEASE);
-    const [masterVolume, setMasterVolumeState] = useState(DEFAULT_MASTER_VOLUME);
-    const [chorusLevel, setChorusLevelState] = useState(DEFAULT_CHORUS_LEVEL);
-    const [chorusRate, setChorusRateState] = useState(DEFAULT_CHORUS_RATE);
-    const [chorusNoiseCutoff, setChorusNoiseCutoffState] = useState(
-      DEFAULT_CHORUS_NOISE_CUTOFF,
-    );
-    const [chorusNoiseMod, setChorusNoiseModState] = useState(
-      DEFAULT_CHORUS_NOISE_MOD,
-    );
-    const [chorusDepth, setChorusDepthState] = useState(DEFAULT_CHORUS_DEPTH);
-    const [chorusDelay, setChorusDelayState] = useState(DEFAULT_CHORUS_DELAY);
-    const [predelay, setPredelayState] = useState(DEFAULT_PREDELAY);
-    const [reverbLevel, setReverbLevelState] = useState(DEFAULT_REVERB_LEVEL);
-    const [autoAttack, setAutoAttack] = useState(false);
+      values,
+      setParam,
+      setSpeedPressure,
+      setChorusRateControl,
+      toggleChorusNoiseMod,
+      toggleAutoAttack,
+    } = useSynthSettings();
 
-    const autoAttackRef = useRef(false);
+    const autoAttackRef = useRef(values.autoAttack);
     const lastPressAtRef = useRef<number | null>(null);
     const ioiWindowRef = useRef<number[]>([]);
-    const setBowVelocityAttackRef = useRef(setBowVelocityAttack);
+    const setParamRef = useRef(setParam);
 
-    autoAttackRef.current = autoAttack;
-    setBowVelocityAttackRef.current = setBowVelocityAttack;
+    autoAttackRef.current = values.autoAttack;
+    setParamRef.current = setParam;
 
     useImperativeHandle(
       ref,
@@ -153,8 +103,7 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
           const avg =
             window.reduce((sum, value) => sum + value, 0) / window.length;
           const nextAttack = attackFromIoi(avg);
-          setAttack(nextAttack);
-          setBowVelocityAttackRef.current(nextAttack);
+          setParamRef.current("attack", nextAttack);
         },
       }),
       [],
@@ -162,135 +111,28 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
 
     const handleSpeedPressureChange = useCallback(
       ({ x, y }: { x: number; y: number }) => {
-        setForce(x);
-        setVelocity(y);
-        setBowForce(invertForce(x));
-        setBowVelocity(y);
+        setSpeedPressure(y, x);
       },
-      [setBowForce, setBowVelocity],
-    );
-
-    const handleVibratoChange = useCallback(
-      (value: number) => {
-        setVibrato(value);
-        setVibratoIntensity(value);
-      },
-      [setVibratoIntensity],
-    );
-
-    const handleVibratoRateChange = useCallback(
-      (value: number) => {
-        setVibratoRateState(value);
-        setVibratoRate(value);
-      },
-      [setVibratoRate],
-    );
-
-    const handleAttackChange = useCallback(
-      (value: number) => {
-        setAttack(value);
-        setBowVelocityAttack(value);
-      },
-      [setBowVelocityAttack],
-    );
-
-    const handleReleaseChange = useCallback(
-      (value: number) => {
-        setRelease(value);
-        setBowVelocityRelease(value);
-      },
-      [setBowVelocityRelease],
-    );
-
-    const handleMasterVolumeChange = useCallback(
-      (value: number) => {
-        setMasterVolumeState(value);
-        setMasterVolume(value);
-      },
-      [setMasterVolume],
-    );
-
-    const handleChorusLevelChange = useCallback(
-      (value: number) => {
-        setChorusLevelState(value);
-        setChorusLevel(value);
-      },
-      [setChorusLevel],
-    );
-
-    const handleChorusRateChange = useCallback(
-      (value: number) => {
-        if (chorusNoiseMod) {
-          setChorusNoiseCutoffState(value);
-        } else {
-          setChorusRateState(value);
-        }
-        setChorusRate(value);
-      },
-      [chorusNoiseMod, setChorusRate],
-    );
-
-    const handleChorusNoiseModToggle = useCallback(() => {
-      setChorusNoiseModState((current) => {
-        const next = !current;
-        setChorusNoiseMod(next);
-        setChorusRate(next ? chorusNoiseCutoff : chorusRate);
-        return next;
-      });
-    }, [chorusNoiseCutoff, chorusRate, setChorusNoiseMod, setChorusRate]);
-
-    const handleChorusDepthChange = useCallback(
-      (value: number) => {
-        setChorusDepthState(value);
-        setChorusDepth(value);
-      },
-      [setChorusDepth],
-    );
-
-    const handleChorusDelayChange = useCallback(
-      (value: number) => {
-        setChorusDelayState(value);
-        setChorusDelay(value);
-      },
-      [setChorusDelay],
-    );
-
-    const handlePredelayChange = useCallback(
-      (value: number) => {
-        setPredelayState(value);
-        setPredelay(value);
-      },
-      [setPredelay],
-    );
-
-    const handleReverbLevelChange = useCallback(
-      (value: number) => {
-        setReverbLevelState(value);
-        setReverbLevel(value);
-      },
-      [setReverbLevel],
+      [setSpeedPressure],
     );
 
     const handleAutoAttackToggle = useCallback(() => {
-      setAutoAttack((current) => {
-        const next = !current;
-        if (!next) {
-          lastPressAtRef.current = null;
-          ioiWindowRef.current = [];
-        }
-        return next;
-      });
-    }, []);
+      if (values.autoAttack) {
+        lastPressAtRef.current = null;
+        ioiWindowRef.current = [];
+      }
+      toggleAutoAttack();
+    }, [toggleAutoAttack, values.autoAttack]);
 
     return (
       <View className="min-h-0 flex-1 flex-row gap-4 px-3 py-2">
         <BowXyPad
           yLabel="Speed · Y"
           yIcon="speed"
-          y={{ value: velocity, min: 0, max: 1 }}
+          y={{ value: values.speed, min: 0, max: 1 }}
           xLabel="Pressure · X"
           xIcon="compress"
-          x={{ value: force, min: FORCE_MIN, max: FORCE_MAX }}
+          x={{ value: values.pressure, min: FORCE_MIN, max: FORCE_MAX }}
           disabled={disabled}
           onChange={handleSpeedPressureChange}
         />
@@ -306,107 +148,119 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
           <VerticalFader
             label="Vibrato"
             icon="waves"
-            value={vibrato}
+            value={values.vibrato}
             min={0}
             max={1}
             disabled={disabled}
-            onChange={handleVibratoChange}
+            onChange={(value) => setParam("vibrato", value)}
           />
           <VerticalFader
             label="Rate"
             icon="graphic-eq"
-            value={vibratoRate}
+            value={values.vibratoRate}
             min={VIBRATO_RATE_MIN}
             max={VIBRATO_RATE_MAX}
             disabled={disabled}
-            onChange={handleVibratoRateChange}
+            onChange={(value) => setParam("vibratoRate", value)}
           />
           <VerticalFader
-            label={autoAttack ? "Auto" : "Attack"}
-            icon={autoAttack ? "auto-mode" : "trending-up"}
-            value={attack}
+            label={values.autoAttack ? "Auto" : "Attack"}
+            icon={values.autoAttack ? "auto-mode" : "trending-up"}
+            value={values.attack}
             min={TIME_MIN}
             max={TIME_MAX}
-            disabled={disabled || autoAttack}
+            disabled={disabled || values.autoAttack}
             labelDisabled={disabled}
-            labelSelected={autoAttack}
+            labelSelected={values.autoAttack}
             onLabelPress={handleAutoAttackToggle}
-            onChange={handleAttackChange}
+            onChange={(value) => setParam("attack", value)}
           />
           <VerticalFader
             label="Release"
             icon="trending-down"
-            value={release}
+            value={values.release}
             min={TIME_MIN}
             max={TIME_MAX}
             disabled={disabled}
-            onChange={handleReleaseChange}
+            onChange={(value) => setParam("release", value)}
           />
           <VerticalFader
             label="Chorus"
             icon="library-music"
-            value={chorusLevel}
+            value={values.chorus}
             min={0}
             max={1}
             disabled={disabled}
-            onChange={handleChorusLevelChange}
+            onChange={(value) => setParam("chorus", value)}
           />
           <VerticalFader
-            label={chorusNoiseMod ? "Noise" : "Rate"}
-            icon={chorusNoiseMod ? "grain" : "sync"}
-            value={chorusNoiseMod ? chorusNoiseCutoff : chorusRate}
-            min={chorusNoiseMod ? CHORUS_NOISE_CUTOFF_MIN : CHORUS_RATE_MIN}
-            max={chorusNoiseMod ? CHORUS_NOISE_CUTOFF_MAX : CHORUS_RATE_MAX}
+            label={values.chorusNoiseMod ? "Noise" : "Rate"}
+            icon={values.chorusNoiseMod ? "grain" : "sync"}
+            value={
+              values.chorusNoiseMod
+                ? values.chorusNoiseCutoff
+                : values.chorusRate
+            }
+            min={
+              values.chorusNoiseMod
+                ? CHORUS_NOISE_CUTOFF_MIN
+                : CHORUS_RATE_MIN
+            }
+            max={
+              values.chorusNoiseMod
+                ? CHORUS_NOISE_CUTOFF_MAX
+                : CHORUS_RATE_MAX
+            }
             disabled={disabled}
             labelDisabled={disabled}
-            labelSelected={chorusNoiseMod}
-            onLabelPress={handleChorusNoiseModToggle}
-            onChange={handleChorusRateChange}
+            labelSelected={values.chorusNoiseMod}
+            onLabelPress={toggleChorusNoiseMod}
+            onChange={setChorusRateControl}
           />
           <VerticalFader
             label="Depth"
             icon="swap-vert"
-            value={chorusDepth}
+            value={values.chorusDepth}
             min={0}
             max={1}
             disabled={disabled}
-            onChange={handleChorusDepthChange}
+            onChange={(value) => setParam("chorusDepth", value)}
           />
           <VerticalFader
             label="Delay"
             icon="hourglass-empty"
-            value={chorusDelay}
+            value={values.chorusDelay}
             min={CHORUS_DELAY_MIN}
             max={CHORUS_DELAY_MAX}
             disabled={disabled}
-            onChange={handleChorusDelayChange}
+            onChange={(value) => setParam("chorusDelay", value)}
           />
           <VerticalFader
             label="Predelay"
             icon="timer"
-            value={predelay}
+            value={values.predelay}
             min={PREDELAY_MIN}
             max={PREDELAY_MAX}
             disabled={disabled}
-            onChange={handlePredelayChange}
+            onChange={(value) => setParam("predelay", value)}
           />
           <VerticalFader
             label="Reverb"
             icon="blur-on"
-            value={reverbLevel}
+            value={values.reverb}
             min={0}
             max={1}
             disabled={disabled}
-            onChange={handleReverbLevelChange}
+            onChange={(value) => setParam("reverb", value)}
           />
           <VerticalFader
             label="Volume"
             icon="volume-up"
-            value={masterVolume}
+            value={values.volume}
             min={0}
             max={1}
             disabled={disabled}
-            onChange={handleMasterVolumeChange}
+            onChange={(value) => setParam("volume", value)}
           />
         </ScrollView>
       </View>

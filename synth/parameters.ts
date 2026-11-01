@@ -1,0 +1,126 @@
+export const FORCE_MIN = 0.1;
+export const FORCE_MAX = 5;
+export const VIBRATO_RATE_MIN = 1;
+export const VIBRATO_RATE_MAX = 10;
+export const TIME_MIN = 0.01;
+export const TIME_MAX = 1;
+export const CHORUS_RATE_MIN = 0.1;
+export const CHORUS_RATE_MAX = 5;
+export const CHORUS_NOISE_CUTOFF_MIN = 10;
+export const CHORUS_NOISE_CUTOFF_MAX = 200;
+export const CHORUS_DELAY_MIN = 0.008;
+export const CHORUS_DELAY_MAX = 0.03;
+export const PREDELAY_MIN = 0;
+export const PREDELAY_MAX = 0.2;
+
+export type ContinuousParamId =
+  | "speed"
+  | "pressure"
+  | "vibrato"
+  | "vibratoRate"
+  | "attack"
+  | "release"
+  | "chorus"
+  | "chorusRate"
+  | "chorusDepth"
+  | "chorusDelay"
+  | "predelay"
+  | "reverb"
+  | "volume";
+
+export type SynthParamValues = {
+  speed: number;
+  pressure: number;
+  vibrato: number;
+  vibratoRate: number;
+  attack: number;
+  release: number;
+  chorus: number;
+  chorusRate: number;
+  chorusNoiseCutoff: number;
+  chorusNoiseMod: boolean;
+  chorusDepth: number;
+  chorusDelay: number;
+  predelay: number;
+  reverb: number;
+  volume: number;
+  autoAttack: boolean;
+};
+
+export type ContinuousParamDef = {
+  id: ContinuousParamId;
+  label: string;
+  min: number;
+  max: number;
+};
+
+export const CONTINUOUS_PARAMS: readonly ContinuousParamDef[] = [
+  { id: "speed", label: "Speed", min: 0, max: 1 },
+  { id: "pressure", label: "Pressure", min: FORCE_MIN, max: FORCE_MAX },
+  { id: "vibrato", label: "Vibrato", min: 0, max: 1 },
+  {
+    id: "vibratoRate",
+    label: "Vibrato Rate",
+    min: VIBRATO_RATE_MIN,
+    max: VIBRATO_RATE_MAX,
+  },
+  { id: "attack", label: "Attack", min: TIME_MIN, max: TIME_MAX },
+  { id: "release", label: "Release", min: TIME_MIN, max: TIME_MAX },
+  { id: "chorus", label: "Chorus", min: 0, max: 1 },
+  {
+    id: "chorusRate",
+    label: "Chorus Rate",
+    min: CHORUS_RATE_MIN,
+    max: CHORUS_RATE_MAX,
+  },
+  { id: "chorusDepth", label: "Depth", min: 0, max: 1 },
+  {
+    id: "chorusDelay",
+    label: "Delay",
+    min: CHORUS_DELAY_MIN,
+    max: CHORUS_DELAY_MAX,
+  },
+  { id: "predelay", label: "Predelay", min: PREDELAY_MIN, max: PREDELAY_MAX },
+  { id: "reverb", label: "Reverb", min: 0, max: 1 },
+  { id: "volume", label: "Volume", min: 0, max: 1 },
+] as const;
+
+export const DEFAULT_PARAM_VALUES: SynthParamValues = {
+  speed: 0.134,
+  pressure: 0.8,
+  vibrato: 0.01,
+  vibratoRate: 1.03,
+  attack: 0.08,
+  release: 0.1,
+  chorus: 0.7,
+  chorusRate: 1.5,
+  chorusNoiseCutoff: 17.2,
+  chorusNoiseMod: true,
+  chorusDepth: 0.117,
+  chorusDelay: 0.028,
+  predelay: 0.167,
+  reverb: 0.86,
+  volume: 0.75,
+  autoAttack: false,
+};
+
+export type CcMappings = Partial<Record<ContinuousParamId, number>>;
+
+export function invertForce(value: number) {
+  return FORCE_MIN + FORCE_MAX - value;
+}
+
+export function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+export function mapCcToParam(ccValue: number, min: number, max: number) {
+  const normalized = clamp(ccValue, 0, 127) / 127;
+  return min + normalized * (max - min);
+}
+
+export function continuousParamDef(
+  id: ContinuousParamId,
+): ContinuousParamDef | undefined {
+  return CONTINUOUS_PARAMS.find((param) => param.id === id);
+}

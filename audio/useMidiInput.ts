@@ -10,6 +10,7 @@ import type {
 type MidiNoteHandlers = {
   onNoteOn: (midi: number) => void;
   onNoteOff: (midi: number) => void;
+  onControlChange?: (controller: number, value: number) => void;
 };
 
 type UseMidiInputOptions = MidiNoteHandlers & {
@@ -29,6 +30,10 @@ function isNoteOff(status: number, velocity: number) {
   return command === 0x80 || (command === 0x90 && velocity === 0);
 }
 
+function isControlChange(status: number) {
+  return (status & 0xf0) === 0xb0;
+}
+
 function attachInput(
   input: MIDIInput,
   handlersRef: { current: MidiNoteHandlers },
@@ -41,21 +46,30 @@ function attachInput(
     }
 
     const status = data[0] ?? 0;
-    const note = data[1] ?? 0;
-    const velocity = data[2] ?? 0;
-    if (note > 127) {
+    const data1 = data[1] ?? 0;
+    const data2 = data[2] ?? 0;
+
+    if (isControlChange(status)) {
+      if (data1 > 127) {
+        return;
+      }
+      handlersRef.current.onControlChange?.(data1, data2);
       return;
     }
 
-    if (isNoteOn(status, velocity)) {
-      heldRef.current.add(note);
-      handlersRef.current.onNoteOn(note);
+    if (data1 > 127) {
       return;
     }
 
-    if (isNoteOff(status, velocity)) {
-      heldRef.current.delete(note);
-      handlersRef.current.onNoteOff(note);
+    if (isNoteOn(status, data2)) {
+      heldRef.current.add(data1);
+      handlersRef.current.onNoteOn(data1);
+      return;
+    }
+
+    if (isNoteOff(status, data2)) {
+      heldRef.current.delete(data1);
+      handlersRef.current.onNoteOff(data1);
     }
   };
 }
@@ -91,16 +105,17 @@ async function loadRequestMIDIAccess(): Promise<RequestMIDIAccess | null> {
 }
 
 /**
- * Listens to USB/Web MIDI inputs and forwards Note On/Off to the synth engine.
+ * Listens to USB/Web MIDI inputs and forwards Note On/Off / CC to the synth.
  * On iOS/Android requires a native/dev-client rebuild that includes react-native-midi-api.
  */
 export function useMidiInput({
   enabled = true,
   onNoteOn,
   onNoteOff,
+  onControlChange,
 }: UseMidiInputOptions) {
-  const handlersRef = useRef({ onNoteOn, onNoteOff });
-  handlersRef.current = { onNoteOn, onNoteOff };
+  const handlersRef = useRef({ onNoteOn, onNoteOff, onControlChange });
+  handlersRef.current = { onNoteOn, onNoteOff, onControlChange };
 
   const heldRef = useRef(new Set<number>());
 

@@ -1,16 +1,20 @@
 import { useAudioEngine } from "@/audio/AudioEngineProvider";
-import { useMidiInput } from "@/audio/useMidiInput";
 import BowControls, {
   type BowControlsHandle,
 } from "@/components/bow-controls/BowControls";
+import SettingsGearButton from "@/components/settings/SettingsGearButton";
 import StringKeyboard from "@/components/string-keyboard/StringKeyboard";
 import { midiToFrequency } from "@/components/string-keyboard/notes";
-import { useCallback, useRef, useState } from "react";
+import { useSynthSettings } from "@/synth/SynthSettingsProvider";
+import { useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function Index() {
+  const router = useRouter();
   const { resume, noteOn, noteOff } = useAudioEngine();
+  const { registerMidiNoteHandlers } = useSynthSettings();
   const [keyboardExpanded, setKeyboardExpanded] = useState(true);
   const [midiHeld, setMidiHeld] = useState<number[]>([]);
   const bowControlsRef = useRef<BowControlsHandle>(null);
@@ -52,10 +56,12 @@ export default function Index() {
     [handleNoteOff],
   );
 
-  useMidiInput({
-    onNoteOn: handleMidiNoteOn,
-    onNoteOff: handleMidiNoteOff,
-  });
+  useEffect(() => {
+    return registerMidiNoteHandlers({
+      onNoteOn: handleMidiNoteOn,
+      onNoteOff: handleMidiNoteOff,
+    });
+  }, [handleMidiNoteOff, handleMidiNoteOn, registerMidiNoteHandlers]);
 
   return (
     <View
@@ -67,6 +73,17 @@ export default function Index() {
         paddingRight: insets.right,
       }}
     >
+      <View
+        style={{
+          position: "absolute",
+          top: insets.top + 4,
+          right: insets.right + 8,
+          zIndex: 20,
+        }}
+      >
+        <SettingsGearButton onPress={() => router.push("/settings")} />
+      </View>
+
       <StringKeyboard
         voices={4}
         expanded={keyboardExpanded}
