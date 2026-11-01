@@ -18,7 +18,6 @@ import {
   Pressable,
   Text,
   View,
-  useWindowDimensions,
   type LayoutChangeEvent,
 } from "react-native";
 import {
@@ -77,7 +76,6 @@ export default function StringKeyboard({
   onNoteOn,
   onNoteOff,
 }: StringKeyboardProps) {
-  const { height: screenHeight } = useWindowDimensions();
   const [stage, setStage] = useState<StageSize>({ width: 0, height: 0 });
   const [rowOffset, setRowOffset] = useState(0);
   const [sounding, setSounding] = useState<number[]>([]);
@@ -383,7 +381,7 @@ export default function StringKeyboard({
   }
 
   return (
-    <View className="w-full" style={{ height: Math.round(screenHeight * 0.8) }}>
+    <View className="min-h-0 w-full flex-1">
       <View className="px-2 pb-2">
         <FoldButton expanded onPress={toggleExpanded} />
       </View>

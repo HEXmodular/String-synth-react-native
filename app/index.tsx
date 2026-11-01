@@ -8,7 +8,7 @@ import { midiToFrequency } from "@/components/string-keyboard/notes";
 import { useSynthSettings } from "@/synth/SynthSettingsProvider";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Platform, Pressable, View } from "react-native";
+import { Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function Index() {
@@ -84,34 +84,22 @@ export default function Index() {
         <SettingsGearButton onPress={() => router.push("/settings")} />
       </View>
 
-      <StringKeyboard
-        voices={values.holdVoices}
-        rowCount={values.keyboardRows}
-        expanded={keyboardExpanded}
-        onExpandedChange={setKeyboardExpanded}
-        midiHeld={midiHeld}
-        onNoteOn={(note) => handleNoteOn(note.midi)}
-        onNoteOff={(note) => handleNoteOff(note.midi)}
-      />
-      <View style={{ flex: 1, minHeight: 0 }}>
-        {keyboardExpanded ? (
-          <Pressable
-            accessibilityLabel="Dismiss Keyboard"
-            accessibilityRole="button"
-            onPress={() => setKeyboardExpanded(false)}
-            style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
-          />
-        ) : null}
-        <View
-          style={{
-            flex: 1,
-            minHeight: 0,
-            pointerEvents: keyboardExpanded ? "none" : "auto",
-          }}
-        >
-          <BowControls ref={bowControlsRef} disabled={keyboardExpanded} />
-        </View>
+      <View style={keyboardExpanded ? { flex: 1, minHeight: 0 } : undefined}>
+        <StringKeyboard
+          voices={values.holdVoices}
+          rowCount={values.keyboardRows}
+          expanded={keyboardExpanded}
+          onExpandedChange={setKeyboardExpanded}
+          midiHeld={midiHeld}
+          onNoteOn={(note) => handleNoteOn(note.midi)}
+          onNoteOff={(note) => handleNoteOff(note.midi)}
+        />
       </View>
+      {!keyboardExpanded ? (
+        <View style={{ flex: 1, minHeight: 0 }}>
+          <BowControls ref={bowControlsRef} />
+        </View>
+      ) : null}
     </View>
   );
 }
