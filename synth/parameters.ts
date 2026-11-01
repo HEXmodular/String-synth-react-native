@@ -12,6 +12,12 @@ export const CHORUS_DELAY_MIN = 0.008;
 export const CHORUS_DELAY_MAX = 0.03;
 export const PREDELAY_MIN = 0;
 export const PREDELAY_MAX = 0.2;
+export const KEYBOARD_ROWS_MIN = 1;
+export const KEYBOARD_ROWS_MAX = 8;
+export const KEYBOARD_ROWS_DEFAULT = 4;
+export const HOLD_VOICES_MIN = 1;
+export const HOLD_VOICES_MAX = 16;
+export const HOLD_VOICES_DEFAULT = 4;
 
 export type ContinuousParamId =
   | "speed"
@@ -45,6 +51,8 @@ export type SynthParamValues = {
   reverb: number;
   volume: number;
   autoAttack: boolean;
+  keyboardRows: number;
+  holdVoices: number;
 };
 
 export type ContinuousParamDef = {
@@ -102,6 +110,8 @@ export const DEFAULT_PARAM_VALUES: SynthParamValues = {
   reverb: 0.86,
   volume: 0.75,
   autoAttack: false,
+  keyboardRows: KEYBOARD_ROWS_DEFAULT,
+  holdVoices: HOLD_VOICES_DEFAULT,
 };
 
 export type CcMappings = Partial<Record<ContinuousParamId, number>>;

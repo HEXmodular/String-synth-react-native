@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 export default function Index() {
   const router = useRouter();
   const { resume, noteOn, noteOff } = useAudioEngine();
-  const { registerMidiNoteHandlers } = useSynthSettings();
+  const { values, registerMidiNoteHandlers } = useSynthSettings();
   const [keyboardExpanded, setKeyboardExpanded] = useState(true);
   const [midiHeld, setMidiHeld] = useState<number[]>([]);
   const bowControlsRef = useRef<BowControlsHandle>(null);
@@ -85,7 +85,8 @@ export default function Index() {
       </View>
 
       <StringKeyboard
-        voices={4}
+        voices={values.holdVoices}
+        rowCount={values.keyboardRows}
         expanded={keyboardExpanded}
         onExpandedChange={setKeyboardExpanded}
         midiHeld={midiHeld}

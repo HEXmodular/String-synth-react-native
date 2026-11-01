@@ -32,6 +32,8 @@ export type { KeyboardNote };
 
 type StringKeyboardProps = {
   voices?: number;
+  /** Visible string rows in the grid. */
+  rowCount?: number;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   /** MIDI notes held on an external controller — shown in green. */
@@ -52,6 +54,7 @@ type PointerPoint = {
 
 type GridMetrics = {
   rowOffset: number;
+  rowCount: number;
   columns: number;
   cellSize: number;
   gap: number;
@@ -67,6 +70,7 @@ const ACCIDENTAL_MIDI_COLOR = "#1f7a4d";
 
 export default function StringKeyboard({
   voices = 4,
+  rowCount = KEYBOARD_ROW_COUNT,
   expanded,
   onExpandedChange,
   midiHeld = [],
@@ -91,6 +95,7 @@ export default function StringKeyboard({
   const onNoteOffRef = useRef(onNoteOff);
   const metricsRef = useRef<GridMetrics>({
     rowOffset: 0,
+    rowCount: KEYBOARD_ROW_COUNT,
     columns: 0,
     cellSize: 0,
     gap: KEY_GAP,
@@ -121,17 +126,22 @@ export default function StringKeyboard({
 
   const safeVoices =
     Number.isFinite(voices) && voices >= 1 ? Math.floor(voices) : 4;
+  const safeRowCount =
+    Number.isFinite(rowCount) && rowCount >= 1
+      ? Math.floor(rowCount)
+      : KEYBOARD_ROW_COUNT;
   const cellSize =
     stage.height > 0
-      ? (stage.height - KEY_GAP * (KEYBOARD_ROW_COUNT - 1)) / KEYBOARD_ROW_COUNT
+      ? (stage.height - KEY_GAP * (safeRowCount - 1)) / safeRowCount
       : 0;
   const columns =
     cellSize > 0 ? Math.max(0, Math.floor((stage.width + KEY_GAP) / (cellSize + KEY_GAP))) : 0;
-  const limits = rowOffsetLimits(Math.max(columns, 1));
+  const limits = rowOffsetLimits(Math.max(columns, 1), safeRowCount);
   const visibleOffset = Math.min(limits.max, Math.max(limits.min, rowOffset));
 
   metricsRef.current = {
     rowOffset: visibleOffset,
+    rowCount: safeRowCount,
     columns,
     cellSize,
     gap: KEY_GAP,
@@ -154,12 +164,18 @@ export default function StringKeyboard({
         metrics.cellSize,
         metrics.gap,
         metrics.columns,
+        metrics.rowCount,
       );
       if (!cell) {
         continue;
       }
 
-      const midi = cellMidi(metrics.rowOffset, cell.row, cell.column);
+      const midi = cellMidi(
+        metrics.rowOffset,
+        cell.row,
+        cell.column,
+        metrics.rowCount,
+      );
       if (seen.has(midi)) {
         continue;
       }
@@ -240,7 +256,7 @@ export default function StringKeyboard({
 
   useEffect(() => {
     syncFromPointers();
-  }, [syncFromPointers, visibleOffset, columns, cellSize, safeVoices]);
+  }, [syncFromPointers, visibleOffset, columns, cellSize, safeVoices, safeRowCount]);
 
   useEffect(() => {
     const pointers = pointersRef.current;
@@ -356,7 +372,7 @@ export default function StringKeyboard({
   const labelSize = Math.max(14, Math.round(cellSize * 0.32));
   const gridWidth = columns > 0 ? columns * cellSize + (columns - 1) * KEY_GAP : 0;
   const gridHeight =
-    cellSize > 0 ? KEYBOARD_ROW_COUNT * cellSize + (KEYBOARD_ROW_COUNT - 1) * KEY_GAP : 0;
+    cellSize > 0 ? safeRowCount * cellSize + (safeRowCount - 1) * KEY_GAP : 0;
 
   if (!expanded) {
     return (
@@ -394,17 +410,19 @@ export default function StringKeyboard({
                   pointerEvents: "box-only",
                 }}
               >
-                {Array.from({ length: KEYBOARD_ROW_COUNT }, (_, row) => (
+                {Array.from({ length: safeRowCount }, (_, row) => (
                   <View
                     key={row}
                     className="flex-row"
                     style={{
-                      marginBottom: row < KEYBOARD_ROW_COUNT - 1 ? KEY_GAP : 0,
+                      marginBottom: row < safeRowCount - 1 ? KEY_GAP : 0,
                       pointerEvents: "none",
                     }}
                   >
                     {Array.from({ length: columns }, (_, column) => {
-                      const note = describeNote(cellMidi(visibleOffset, row, column));
+                      const note = describeNote(
+                        cellMidi(visibleOffset, row, column, safeRowCount),
+                      );
                       const fromMidi = midiHeldSet.has(note.midi);
                       const pressed = soundingSet.has(note.midi);
                       const backgroundColor = fromMidi

@@ -4,6 +4,10 @@ import {
   CHORUS_NOISE_CUTOFF_MIN,
   CONTINUOUS_PARAMS,
   DEFAULT_PARAM_VALUES,
+  HOLD_VOICES_MAX,
+  HOLD_VOICES_MIN,
+  KEYBOARD_ROWS_MAX,
+  KEYBOARD_ROWS_MIN,
   clamp,
   continuousParamDef,
   type CcMappings,
@@ -107,6 +111,22 @@ function parseSavedParams(raw: string | null): SynthParamValues {
         typeof parsed.autoAttack === "boolean"
           ? parsed.autoAttack
           : DEFAULT_PARAM_VALUES.autoAttack,
+      keyboardRows: Math.round(
+        readClamped(
+          parsed.keyboardRows,
+          DEFAULT_PARAM_VALUES.keyboardRows,
+          KEYBOARD_ROWS_MIN,
+          KEYBOARD_ROWS_MAX,
+        ),
+      ),
+      holdVoices: Math.round(
+        readClamped(
+          parsed.holdVoices,
+          DEFAULT_PARAM_VALUES.holdVoices,
+          HOLD_VOICES_MIN,
+          HOLD_VOICES_MAX,
+        ),
+      ),
     };
   } catch {
     return { ...DEFAULT_PARAM_VALUES };

@@ -1,3 +1,4 @@
+/** Default visible string rows; overridable via settings. */
 export const KEYBOARD_ROW_COUNT = 4;
 
 /** Semitones from a cell to the cell on its right. */
@@ -69,8 +70,10 @@ export function cellMidi(
   rowOffset: number,
   visualRow: number,
   column: number,
+  rowCount: number = KEYBOARD_ROW_COUNT,
 ): number {
-  const musicalRow = rowOffset + (KEYBOARD_ROW_COUNT - 1 - visualRow);
+  const rows = Math.max(1, Math.floor(rowCount));
+  const musicalRow = rowOffset + (rows - 1 - visualRow);
   return HOME_MIDI + musicalRow * ROW_SEMITONES + column * COLUMN_SEMITONES;
 }
 
@@ -84,14 +87,18 @@ export function describeNote(midi: number): KeyboardNote {
   };
 }
 
-export function rowOffsetLimits(columnCount: number): { min: number; max: number } {
+export function rowOffsetLimits(
+  columnCount: number,
+  rowCount: number = KEYBOARD_ROW_COUNT,
+): { min: number; max: number } {
   const columns = Math.max(1, columnCount);
+  const rows = Math.max(1, Math.floor(rowCount));
   const min = Math.ceil((LOWEST_MIDI - HOME_MIDI) / ROW_SEMITONES);
   const max =
     Math.floor(
       (HIGHEST_MIDI - HOME_MIDI - (columns - 1) * COLUMN_SEMITONES) /
         ROW_SEMITONES,
-    ) - (KEYBOARD_ROW_COUNT - 1);
+    ) - (rows - 1);
 
   return { min, max: Math.max(min, max) };
 }
@@ -102,13 +109,15 @@ export function cellAtPoint(
   cellSize: number,
   gap: number,
   columns: number,
+  rowCount: number = KEYBOARD_ROW_COUNT,
 ): { row: number; column: number } | null {
   if (cellSize <= 0 || columns <= 0) {
     return null;
   }
 
+  const rows = Math.max(1, Math.floor(rowCount));
   const column = indexAlong(x, cellSize, gap, columns);
-  const row = indexAlong(y, cellSize, gap, KEYBOARD_ROW_COUNT);
+  const row = indexAlong(y, cellSize, gap, rows);
   if (column == null || row == null) {
     return null;
   }

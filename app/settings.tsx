@@ -1,6 +1,15 @@
+import HoldVoicesSettingRow from "@/components/settings/HoldVoicesSettingRow";
+import KeyboardRowsSettingRow from "@/components/settings/KeyboardRowsSettingRow";
 import ParameterLearnRow from "@/components/settings/ParameterLearnRow";
 import ParametersSaveRow from "@/components/settings/ParametersSaveRow";
-import { CONTINUOUS_PARAMS } from "@/synth/parameters";
+import {
+  CONTINUOUS_PARAMS,
+  HOLD_VOICES_MAX,
+  HOLD_VOICES_MIN,
+  KEYBOARD_ROWS_MAX,
+  KEYBOARD_ROWS_MIN,
+  clamp,
+} from "@/synth/parameters";
 import { useSynthSettings } from "@/synth/SynthSettingsProvider";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
@@ -15,6 +24,7 @@ export default function SettingsScreen() {
     values,
     ccMappings,
     learningParamId,
+    setParam,
     startLearn,
     cancelLearn,
     saveCurrentAsDefaults,
@@ -32,6 +42,26 @@ export default function SettingsScreen() {
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 1200);
   }, [saveCurrentAsDefaults]);
+
+  const handleKeyboardRowsChange = useCallback(
+    (next: number) => {
+      setParam(
+        "keyboardRows",
+        Math.round(clamp(next, KEYBOARD_ROWS_MIN, KEYBOARD_ROWS_MAX)),
+      );
+    },
+    [setParam],
+  );
+
+  const handleHoldVoicesChange = useCallback(
+    (next: number) => {
+      setParam(
+        "holdVoices",
+        Math.round(clamp(next, HOLD_VOICES_MIN, HOLD_VOICES_MAX)),
+      );
+    },
+    [setParam],
+  );
 
   return (
     <View
@@ -63,6 +93,18 @@ export default function SettingsScreen() {
         <ParametersSaveRow
           onSave={() => void handleSave()}
           savedFlash={savedFlash}
+        />
+        <KeyboardRowsSettingRow
+          value={values.keyboardRows}
+          min={KEYBOARD_ROWS_MIN}
+          max={KEYBOARD_ROWS_MAX}
+          onChange={handleKeyboardRowsChange}
+        />
+        <HoldVoicesSettingRow
+          value={values.holdVoices}
+          min={HOLD_VOICES_MIN}
+          max={HOLD_VOICES_MAX}
+          onChange={handleHoldVoicesChange}
         />
         {CONTINUOUS_PARAMS.map((param) => {
           const label =
