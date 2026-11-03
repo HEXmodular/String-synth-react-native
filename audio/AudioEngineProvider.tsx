@@ -50,6 +50,9 @@ type EngineHost = Window & {
   setChorusNoiseMod?: (enabled: number) => void;
   setChorusDepth?: (value: number) => void;
   setChorusDelay?: (value: number) => void;
+  setDelayTime?: (value: number) => void;
+  setDelayFeedback?: (value: number) => void;
+  setDelayLevel?: (value: number) => void;
   setPredelay?: (value: number) => void;
   setReverbLevel?: (value: number) => void;
 };
@@ -71,6 +74,9 @@ type AudioEngineValue = {
   setChorusNoiseMod: (enabled: boolean) => void;
   setChorusDepth: (value: number) => void;
   setChorusDelay: (value: number) => void;
+  setDelayTime: (value: number) => void;
+  setDelayFeedback: (value: number) => void;
+  setDelayLevel: (value: number) => void;
   setPredelay: (value: number) => void;
   setReverbLevel: (value: number) => void;
 };
@@ -286,6 +292,39 @@ export default function AudioEngineProvider({
 
     webViewRef.current?.injectJavaScript(
       `window.setChorusDelay(${value}); true;`,
+    );
+  }, []);
+
+  const publishDelayTime = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setDelayTime?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setDelayTime(${value}); true;`,
+    );
+  }, []);
+
+  const publishDelayFeedback = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setDelayFeedback?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setDelayFeedback(${value}); true;`,
+    );
+  }, []);
+
+  const publishDelayLevel = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setDelayLevel?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setDelayLevel(${value}); true;`,
     );
   }, []);
 
@@ -507,6 +546,42 @@ export default function AudioEngineProvider({
     [publishChorusDelay],
   );
 
+  const setDelayTime = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishDelayTime(next);
+    },
+    [publishDelayTime],
+  );
+
+  const setDelayFeedback = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishDelayFeedback(next);
+    },
+    [publishDelayFeedback],
+  );
+
+  const setDelayLevel = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishDelayLevel(next);
+    },
+    [publishDelayLevel],
+  );
+
   const setPredelay = useCallback(
     (value: number) => {
       const next = finiteNumber(value);
@@ -620,6 +695,9 @@ export default function AudioEngineProvider({
       setChorusNoiseMod,
       setChorusDepth,
       setChorusDelay,
+      setDelayTime,
+      setDelayFeedback,
+      setDelayLevel,
       setPredelay,
       setReverbLevel,
     }),
@@ -640,6 +718,9 @@ export default function AudioEngineProvider({
       setChorusNoiseMod,
       setChorusDepth,
       setChorusDelay,
+      setDelayTime,
+      setDelayFeedback,
+      setDelayLevel,
       setPredelay,
       setReverbLevel,
     ],

@@ -8,6 +8,10 @@ import {
   CHORUS_NOISE_CUTOFF_MIN,
   CHORUS_RATE_MAX,
   CHORUS_RATE_MIN,
+  DELAY_FEEDBACK_MAX,
+  DELAY_FEEDBACK_MIN,
+  DELAY_TIME_MAX,
+  DELAY_TIME_MIN,
   FORCE_MAX,
   FORCE_MIN,
   PREDELAY_MAX,
@@ -227,13 +231,40 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
             onChange={(value) => setParam("chorusDepth", value)}
           />
           <VerticalFader
-            label="Delay"
+            label="Ch Delay"
             icon="hourglass-empty"
             value={values.chorusDelay}
             min={CHORUS_DELAY_MIN}
             max={CHORUS_DELAY_MAX}
             disabled={disabled}
             onChange={(value) => setParam("chorusDelay", value)}
+          />
+          <VerticalFader
+            label="Time"
+            icon="schedule"
+            value={values.delayTime}
+            min={DELAY_TIME_MIN}
+            max={DELAY_TIME_MAX}
+            disabled={disabled}
+            onChange={(value) => setParam("delayTime", value)}
+          />
+          <VerticalFader
+            label="Feedback"
+            icon="loop"
+            value={values.delayFeedback}
+            min={DELAY_FEEDBACK_MIN}
+            max={DELAY_FEEDBACK_MAX}
+            disabled={disabled}
+            onChange={(value) => setParam("delayFeedback", value)}
+          />
+          <VerticalFader
+            label="Delay"
+            icon="hourglass-empty"
+            value={values.delayLevel}
+            min={0}
+            max={1}
+            disabled={disabled}
+            onChange={(value) => setParam("delayLevel", value)}
           />
           <VerticalFader
             label="Predelay"

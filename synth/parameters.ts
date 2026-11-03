@@ -12,6 +12,10 @@ export const CHORUS_DELAY_MIN = 0.008;
 export const CHORUS_DELAY_MAX = 0.03;
 export const PREDELAY_MIN = 0;
 export const PREDELAY_MAX = 0.2;
+export const DELAY_TIME_MIN = 0.05;
+export const DELAY_TIME_MAX = 1.5;
+export const DELAY_FEEDBACK_MIN = 0;
+export const DELAY_FEEDBACK_MAX = 0.95;
 export const KEYBOARD_ROWS_MIN = 1;
 export const KEYBOARD_ROWS_MAX = 8;
 export const KEYBOARD_ROWS_DEFAULT = 4;
@@ -30,6 +34,9 @@ export type ContinuousParamId =
   | "chorusRate"
   | "chorusDepth"
   | "chorusDelay"
+  | "delayTime"
+  | "delayFeedback"
+  | "delayLevel"
   | "predelay"
   | "reverb"
   | "volume";
@@ -47,6 +54,9 @@ export type SynthParamValues = {
   chorusNoiseMod: boolean;
   chorusDepth: number;
   chorusDelay: number;
+  delayTime: number;
+  delayFeedback: number;
+  delayLevel: number;
   predelay: number;
   reverb: number;
   volume: number;
@@ -84,10 +94,23 @@ export const CONTINUOUS_PARAMS: readonly ContinuousParamDef[] = [
   { id: "chorusDepth", label: "Depth", min: 0, max: 1 },
   {
     id: "chorusDelay",
-    label: "Delay",
+    label: "Ch Delay",
     min: CHORUS_DELAY_MIN,
     max: CHORUS_DELAY_MAX,
   },
+  {
+    id: "delayTime",
+    label: "Time",
+    min: DELAY_TIME_MIN,
+    max: DELAY_TIME_MAX,
+  },
+  {
+    id: "delayFeedback",
+    label: "Feedback",
+    min: DELAY_FEEDBACK_MIN,
+    max: DELAY_FEEDBACK_MAX,
+  },
+  { id: "delayLevel", label: "Delay", min: 0, max: 1 },
   { id: "predelay", label: "Predelay", min: PREDELAY_MIN, max: PREDELAY_MAX },
   { id: "reverb", label: "Reverb", min: 0, max: 1 },
   { id: "volume", label: "Volume", min: 0, max: 1 },
@@ -106,6 +129,9 @@ export const DEFAULT_PARAM_VALUES: SynthParamValues = {
   chorusNoiseMod: true,
   chorusDepth: 0.117,
   chorusDelay: 0.028,
+  delayTime: 0.35,
+  delayFeedback: 0.35,
+  delayLevel: 0,
   predelay: 0.167,
   reverb: 0.86,
   volume: 0.75,

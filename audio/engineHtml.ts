@@ -30,6 +30,9 @@ export function createEngineScript() {
     window.setChorusNoiseMod = function () {};
     window.setChorusDepth = function () {};
     window.setChorusDelay = function () {};
+    window.setDelayTime = function () {};
+    window.setDelayFeedback = function () {};
+    window.setDelayLevel = function () {};
     window.setPredelay = function () {};
     window.setReverbLevel = function () {};
     return;
@@ -58,6 +61,10 @@ export function createEngineScript() {
   var chorusNoiseGate = null;
   var chorusNoiseFilter = null;
   var chorusWet = null;
+  var delayBus = null;
+  var feedbackDelay = null;
+  var delayFeedbackGain = null;
+  var delayWet = null;
   var predelay = null;
   var predelayLfo = null;
   var predelayLfoDepth = null;
@@ -78,6 +85,9 @@ export function createEngineScript() {
   var chorusNoiseMod = true;
   var chorusDepth = 0.117;
   var chorusDelayTime = 0.028;
+  var delayTime = 0.35;
+  var delayFeedback = 0.35;
+  var delayLevel = 0;
   var predelayTime = 0.167;
   var reverbLevel = 0.86;
 
@@ -321,6 +331,30 @@ export function createEngineScript() {
     chorusDelayR.delayTime.setValueAtTime(chorusDelayTime, now);
   };
 
+  window.setDelayTime = function (value) {
+    delayTime = clamp(finite(value, delayTime), 0.05, 1.5);
+    if (!feedbackDelay) {
+      return;
+    }
+    feedbackDelay.delayTime.setValueAtTime(delayTime, audioCtx.currentTime);
+  };
+
+  window.setDelayFeedback = function (value) {
+    delayFeedback = clamp(finite(value, delayFeedback), 0, 0.95);
+    if (!delayFeedbackGain) {
+      return;
+    }
+    delayFeedbackGain.gain.setValueAtTime(delayFeedback, audioCtx.currentTime);
+  };
+
+  window.setDelayLevel = function (value) {
+    delayLevel = clamp(finite(value, delayLevel), 0, 1);
+    if (!delayWet) {
+      return;
+    }
+    delayWet.gain.setValueAtTime(delayLevel, audioCtx.currentTime);
+  };
+
   window.setPredelay = function (value) {
     predelayTime = clamp(finite(value, predelayTime), 0, 0.2);
     if (!predelay) {
@@ -487,6 +521,15 @@ export function createEngineScript() {
       chorusLfo.start();
       chorusNoise.start();
 
+      // Feedback delay insert (before reverb send)
+      delayBus = audioCtx.createGain();
+      feedbackDelay = audioCtx.createDelay(2);
+      feedbackDelay.delayTime.setValueAtTime(delayTime, audioCtx.currentTime);
+      delayFeedbackGain = audioCtx.createGain();
+      delayFeedbackGain.gain.setValueAtTime(delayFeedback, audioCtx.currentTime);
+      delayWet = audioCtx.createGain();
+      delayWet.gain.setValueAtTime(delayLevel, audioCtx.currentTime);
+
       predelay = audioCtx.createDelay(0.25);
       predelay.delayTime.setValueAtTime(predelayTime, audioCtx.currentTime);
 
@@ -524,9 +567,16 @@ export function createEngineScript() {
       chorusDelayR.connect(chorusMerger, 0, 1);
       chorusMerger.connect(chorusWet);
       chorusWet.connect(chorusOut);
-      chorusOut.connect(master);
-      // Wet: single FDN → stereo out (no per-channel FDN)
-      chorusOut.connect(predelay);
+      // Feedback delay: dry through + wet with feedback loop
+      chorusOut.connect(delayBus);
+      chorusOut.connect(feedbackDelay);
+      feedbackDelay.connect(delayFeedbackGain);
+      delayFeedbackGain.connect(feedbackDelay);
+      feedbackDelay.connect(delayWet);
+      delayWet.connect(delayBus);
+      delayBus.connect(master);
+      // Wet: delay bus → predelay → FDN → stereo out
+      delayBus.connect(predelay);
       predelay.connect(fdn);
       fdn.connect(reverbWet);
       reverbWet.connect(master);
@@ -561,6 +611,9 @@ export function createEngineScript() {
       window.setChorusNoiseMod = function () {};
       window.setChorusDepth = function () {};
       window.setChorusDelay = function () {};
+      window.setDelayTime = function () {};
+      window.setDelayFeedback = function () {};
+      window.setDelayLevel = function () {};
       window.setPredelay = function () {};
       window.setReverbLevel = function () {};
       if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {

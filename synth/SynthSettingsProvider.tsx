@@ -106,6 +106,9 @@ export default function SynthSettingsProvider({
     );
     audio.setChorusDepth(next.chorusDepth);
     audio.setChorusDelay(next.chorusDelay);
+    audio.setDelayTime(next.delayTime);
+    audio.setDelayFeedback(next.delayFeedback);
+    audio.setDelayLevel(next.delayLevel);
     audio.setPredelay(next.predelay);
     audio.setReverbLevel(next.reverb);
     audio.setMasterVolume(next.volume);
@@ -187,6 +190,15 @@ export default function SynthSettingsProvider({
             break;
           case "chorusDelay":
             audio.setChorusDelay(value as number);
+            break;
+          case "delayTime":
+            audio.setDelayTime(value as number);
+            break;
+          case "delayFeedback":
+            audio.setDelayFeedback(value as number);
+            break;
+          case "delayLevel":
+            audio.setDelayLevel(value as number);
             break;
           case "predelay":
             audio.setPredelay(value as number);
@@ -308,6 +320,15 @@ export default function SynthSettingsProvider({
           break;
         case "chorusDelay":
           setParam("chorusDelay", mapped);
+          break;
+        case "delayTime":
+          setParam("delayTime", mapped);
+          break;
+        case "delayFeedback":
+          setParam("delayFeedback", mapped);
+          break;
+        case "delayLevel":
+          setParam("delayLevel", mapped);
           break;
         case "predelay":
           setParam("predelay", mapped);
