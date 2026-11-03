@@ -140,6 +140,15 @@ export default function SynthSettingsProvider({
     await saveCcMappings(next);
   }, []);
 
+  const persistUiSettings = useCallback(async () => {
+    const saved = await loadSavedParams();
+    await saveSavedParams({
+      ...saved,
+      keyboardRows: valuesRef.current.keyboardRows,
+      holdVoices: valuesRef.current.holdVoices,
+    });
+  }, []);
+
   const setParam = useCallback(
     <K extends keyof SynthParamValues>(key: K, value: SynthParamValues[K]) => {
       setValues((current) => {
@@ -215,8 +224,12 @@ export default function SynthSettingsProvider({
 
         return next;
       });
+
+      if (key === "keyboardRows" || key === "holdVoices") {
+        void persistUiSettings();
+      }
     },
-    [],
+    [persistUiSettings],
   );
 
   const setSpeedPressure = useCallback((speed: number, pressure: number) => {
