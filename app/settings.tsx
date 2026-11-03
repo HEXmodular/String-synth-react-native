@@ -1,5 +1,6 @@
 import HoldVoicesSettingRow from "@/components/settings/HoldVoicesSettingRow";
 import KeyboardRowsSettingRow from "@/components/settings/KeyboardRowsSettingRow";
+import MidiParametersSectionHeader from "@/components/settings/MidiParametersSectionHeader";
 import ParameterLearnRow from "@/components/settings/ParameterLearnRow";
 import ParametersSaveRow from "@/components/settings/ParametersSaveRow";
 import {
@@ -106,6 +107,7 @@ export default function SettingsScreen() {
           max={HOLD_VOICES_MAX}
           onChange={handleHoldVoicesChange}
         />
+        <MidiParametersSectionHeader />
         {CONTINUOUS_PARAMS.map((param) => {
           const label =
             param.id === "chorusRate" && values.chorusNoiseMod
