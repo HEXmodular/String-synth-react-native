@@ -4,6 +4,17 @@ import { fdnReverbProcessorSource } from "@/audio/fdnReverbProcessor";
 /** FDN delay-line count: 4 or 8. */
 const FDN_LINES = 8;
 
+/** Changes when processor/engine source changes — remount WebView / reinject web script. */
+export function getEngineBuildId() {
+  // Hash the full injected script so engineHtml-only fixes invalidate the cache too.
+  const source = createEngineScript();
+  let hash = 0;
+  for (let i = 0; i < source.length; i++) {
+    hash = (hash * 31 + source.charCodeAt(i)) | 0;
+  }
+  return `brass-${hash}-${source.length}`;
+}
+
 export function createEngineScript() {
   const processorSource = JSON.stringify(
     brassProcessorSource + "\n" + fdnReverbProcessorSource,
@@ -12,6 +23,13 @@ export function createEngineScript() {
 
   return `
 (function () {
+  if (window.__brassAudioCtx && window.__brassAudioCtx.close) {
+    try {
+      window.__brassAudioCtx.close();
+    } catch (error) {}
+    window.__brassAudioCtx = null;
+  }
+
   var AudioCtx = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtx) {
     window.resumeAudio = function () {};
@@ -50,6 +68,7 @@ export function createEngineScript() {
   } catch (error) {
     audioCtx = new AudioCtx();
   }
+  window.__brassAudioCtx = audioCtx;
 
   var MAX_VOICES = 16;
   var FDN_LINES = ${fdnLines};
@@ -126,13 +145,16 @@ export function createEngineScript() {
         continue;
       }
       voice.force.cancelScheduledValues(now);
-      voice.velocity.cancelScheduledValues(now);
       voice.vibrato.cancelScheduledValues(now);
       voice.vibratoRate.cancelScheduledValues(now);
       voice.force.setValueAtTime(bowForce, now);
-      voice.velocity.setValueAtTime(bowVelocity, now);
       voice.vibrato.setValueAtTime(vibratoIntensity, now);
       voice.vibratoRate.setValueAtTime(vibratoRate, now);
+      // Do not touch velocity during breath attack/release — worklet owns ramps.
+      if (!(voice.attackUntil > now) && !(voice.releaseUntil > now)) {
+        voice.velocity.cancelScheduledValues(now);
+        voice.velocity.setValueAtTime(bowVelocity, now);
+      }
     }
   }
 
@@ -148,27 +170,39 @@ export function createEngineScript() {
     var amp = audioCtx.createGain();
     var now = audioCtx.currentTime;
     amp.gain.setValueAtTime(0, now);
-    var velocity = brassNode.parameters.get("bowVelocity");
+    var velocity = brassNode.parameters.get("breath");
     var vibrato = brassNode.parameters.get("vibratoDepth");
     var vibratoRateParam = brassNode.parameters.get("vibratoRate");
     var attackTrigger = brassNode.parameters.get("attackTrigger");
+    var attackTimeParam = brassNode.parameters.get("attackTime");
+    var releaseTrigger = brassNode.parameters.get("releaseTrigger");
+    var releaseTimeParam = brassNode.parameters.get("releaseTime");
     velocity.setValueAtTime(0, now);
     vibrato.setValueAtTime(0, now);
     vibratoRateParam.setValueAtTime(vibratoRate, now);
     attackTrigger.setValueAtTime(0, now);
+    attackTimeParam.setValueAtTime(velocityAttack, now);
+    releaseTrigger.setValueAtTime(0, now);
+    releaseTimeParam.setValueAtTime(velocityRelease, now);
     brassNode.connect(amp);
     amp.connect(mixer);
     var voice = {
+      node: brassNode,
       frequency: brassNode.parameters.get("frequency"),
-      force: brassNode.parameters.get("bowForce"),
+      force: brassNode.parameters.get("lipTension"),
       velocity: velocity,
       vibrato: vibrato,
       vibratoRate: vibratoRateParam,
       attackTrigger: attackTrigger,
+      attackTime: attackTimeParam,
+      releaseTrigger: releaseTrigger,
+      releaseTime: releaseTimeParam,
       amp: amp,
       noteId: null,
       active: false,
       startedAt: 0,
+      attackUntil: 0,
+      releaseUntil: 0,
       cpuLoad: 0,
     };
     brassNode.port.onmessage = function (event) {
@@ -194,26 +228,37 @@ export function createEngineScript() {
   function releaseVoice(voice) {
     var now = audioCtx.currentTime;
     var releaseTime = Math.max(0.01, velocityRelease);
+    var breathStart = bowVelocity < 0.5 ? 0.5 : bowVelocity;
+    voice.attackUntil = 0;
+    voice.releaseUntil = now + releaseTime;
     voice.velocity.cancelScheduledValues(now);
+    voice.releaseTrigger.cancelScheduledValues(now);
+    voice.releaseTime.cancelScheduledValues(now);
     voice.amp.gain.cancelScheduledValues(now);
-    voice.velocity.setValueAtTime(voice.velocity.value || 0, now);
-    voice.velocity.linearRampToValueAtTime(0, now + releaseTime);
 
-    var gainNow = voice.amp.gain.value;
-    if (!(gainNow > 0.001)) {
-      voice.amp.gain.setValueAtTime(0.001, now);
-      return;
-    }
+    // Keep breath + amp open for the full Release; worklet releaseGain 1→0
+    // is the audible envelope (breath held so the bore keeps speaking).
+    voice.velocity.setValueAtTime(breathStart, now);
+    voice.velocity.setValueAtTime(0, now + releaseTime + 0.01);
+    voice.releaseTime.setValueAtTime(releaseTime, now);
+    voice.releaseTrigger.setValueAtTime(0, now);
+    voice.releaseTrigger.setValueAtTime(1, now + 0.02);
+    voice.node.port.postMessage({
+      type: "release",
+      releaseTime: releaseTime,
+      breathStart: breathStart,
+    });
 
-    // Keep amp open briefly after breath stops so bore ring-down stays audible.
-    var ampRelease = releaseTime + 0.12;
-    voice.amp.gain.setValueAtTime(gainNow, now);
-    voice.amp.gain.exponentialRampToValueAtTime(0.001, now + ampRelease);
+    voice.amp.gain.setValueAtTime(0.22, now);
+    voice.amp.gain.setValueAtTime(0.22, now + releaseTime);
+    voice.amp.gain.linearRampToValueAtTime(0.0001, now + releaseTime + 0.05);
   }
 
   function allocVoice() {
+    var now = audioCtx.currentTime;
     for (var i = 0; i < voices.length; i++) {
-      if (!voices[i].active) {
+      // Don't steal a voice still in its release tail.
+      if (!voices[i].active && !(voices[i].releaseUntil > now)) {
         return voices[i];
       }
     }
@@ -250,19 +295,33 @@ export function createEngineScript() {
     voice.vibrato.cancelScheduledValues(now);
     voice.vibratoRate.cancelScheduledValues(now);
     voice.attackTrigger.cancelScheduledValues(now);
+    voice.attackTime.cancelScheduledValues(now);
+    voice.releaseTrigger.cancelScheduledValues(now);
+    voice.releaseTime.cancelScheduledValues(now);
     voice.amp.gain.cancelScheduledValues(now);
 
     voice.frequency.setValueAtTime(freq, now);
     voice.force.setValueAtTime(bowForce, now);
     voice.vibrato.setValueAtTime(vibratoIntensity, now);
     voice.vibratoRate.setValueAtTime(vibratoRate, now);
-    voice.velocity.setValueAtTime(0, now);
-    voice.velocity.linearRampToValueAtTime(bowVelocity, now + velocityAttack);
-    // Rising edge starts the physical attack transient in the worklet.
+    var attackTime = Math.max(0.01, velocityAttack);
+    var breathTarget = bowVelocity < 0.5 ? 0.5 : bowVelocity;
+    voice.releaseUntil = 0;
+    voice.attackUntil = now + attackTime;
+    // Breath AudioParam holds the sustain target; worklet ramps 0.5 → target.
+    voice.velocity.setValueAtTime(breathTarget, now);
+    voice.attackTime.setValueAtTime(attackTime, now);
+    // Rising edge backup (port message is authoritative for timing/target).
     voice.attackTrigger.setValueAtTime(0, now);
-    voice.attackTrigger.setValueAtTime(1, now + 0.001);
-    voice.amp.gain.setValueAtTime(0, now);
-    voice.amp.gain.linearRampToValueAtTime(0.22, now + 0.05);
+    voice.attackTrigger.setValueAtTime(1, now + 0.02);
+    voice.node.port.postMessage({
+      type: "attack",
+      attackTime: attackTime,
+      breathTarget: breathTarget,
+    });
+    // Amp follows Attack so long ramps are not masked by a 50 ms open.
+    voice.amp.gain.setValueAtTime(0.0001, now);
+    voice.amp.gain.linearRampToValueAtTime(0.22, now + attackTime);
   }
 
   window.resumeAudio = resume;
@@ -289,10 +348,24 @@ export function createEngineScript() {
 
   window.setBowVelocityAttack = function (value) {
     velocityAttack = clamp(finite(value, velocityAttack), 0.01, 1);
+    if (!ready) {
+      return;
+    }
+    var now = audioCtx.currentTime;
+    for (var i = 0; i < voices.length; i++) {
+      voices[i].attackTime.setValueAtTime(velocityAttack, now);
+    }
   };
 
   window.setBowVelocityRelease = function (value) {
     velocityRelease = clamp(finite(value, velocityRelease), 0.01, 1);
+    if (!ready) {
+      return;
+    }
+    var now = audioCtx.currentTime;
+    for (var i = 0; i < voices.length; i++) {
+      voices[i].releaseTime.setValueAtTime(velocityRelease, now);
+    }
   };
 
   window.setMasterVolume = function (value) {

@@ -1,4 +1,8 @@
-import { createEngineHtml, createEngineScript } from "@/audio/engineHtml";
+import {
+  createEngineHtml,
+  createEngineScript,
+  getEngineBuildId,
+} from "@/audio/engineHtml";
 import {
   createContext,
   useCallback,
@@ -27,6 +31,7 @@ const WebView = NativeWebView as unknown as ComponentType<
   WebViewProps & { ref?: RefObject<WebViewHandle | null> }
 >;
 
+const ENGINE_BUILD_ID = getEngineBuildId();
 const ENGINE_HTML = createEngineHtml();
 
 type BowNoteCall = {
@@ -148,18 +153,22 @@ type AudioEngineValue = {
 
 const AudioEngineContext = createContext<AudioEngineValue | null>(null);
 
-let webEngineInstalled = false;
+let webEngineBuildId = "";
 
 function webEngine() {
   return window as EngineHost;
 }
 
 function ensureWebEngine() {
-  if (webEngineInstalled || typeof document === "undefined") {
+  if (typeof document === "undefined") {
     return;
   }
 
-  webEngineInstalled = true;
+  const buildId = getEngineBuildId();
+  if (webEngineBuildId === buildId) {
+    return;
+  }
+  webEngineBuildId = buildId;
   const script = document.createElement("script");
   script.textContent = createEngineScript();
   document.head.appendChild(script);
@@ -740,6 +749,14 @@ export default function AudioEngineProvider({
   );
 
   useEffect(() => {
+    if (Platform.OS === "web") {
+      return;
+    }
+    // Native WebView remounts via key={ENGINE_BUILD_ID}; mark not-ready until onLoadEnd.
+    readyRef.current = false;
+  }, [ENGINE_BUILD_ID]);
+
+  useEffect(() => {
     if (Platform.OS !== "web") {
       return;
     }
@@ -778,7 +795,7 @@ export default function AudioEngineProvider({
       window.removeEventListener("pointerdown", unlock, true);
       cancelAnimationFrame(raf);
     };
-  }, [flushNotes]);
+  }, [flushNotes, ENGINE_BUILD_ID]);
 
   const value = useMemo(
     () => ({
@@ -839,6 +856,7 @@ export default function AudioEngineProvider({
             style={{ pointerEvents: "none" }}
           >
             <WebView
+              key={ENGINE_BUILD_ID}
               ref={webViewRef}
               style={{ width: 1, height: 1 }}
               originWhitelist={["*"]}

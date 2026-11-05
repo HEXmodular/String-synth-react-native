@@ -1,5 +1,6 @@
 import { useCpuLoad } from "@/audio/AudioEngineProvider";
-import { Text } from "react-native";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { Text, View } from "react-native";
 
 export default function CpuLoadIndicator() {
   const cpuLoad = useCpuLoad();
@@ -8,12 +9,15 @@ export default function CpuLoadIndicator() {
     percent >= 90 ? "#dc2626" : percent >= 70 ? "#ea7a53" : "#f4f6fa";
 
   return (
-    <Text
+    <View
       accessibilityLabel={`CPU load ${percent} percent`}
-      className="font-sans-medium text-xs"
-      style={{ color, opacity: 0.85 }}
+      className="flex-row items-center gap-1"
+      style={{ opacity: 0.85 }}
     >
-      CPU {percent}%
-    </Text>
+      <MaterialIcons name="memory" size={18} color={color} />
+      <Text className="font-sans-medium text-xs" style={{ color }}>
+        {percent}%
+      </Text>
+    </View>
   );
 }

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "String synth",
-    "slug": "string-synth",
+    "name": "Brass synth",
+    "slug": "brass-synth",
     "version": "1.0.0",
     "orientation": "landscape",
     "icon": "./assets/images/icon.png",
@@ -52,7 +52,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "54bfd623-86f4-4db5-a45d-e9180539ec34"
+        "projectId": "889612aa-b721-44d2-b09a-e03af7e8b1d5"
       }
     },
     "owner": "ejji"
