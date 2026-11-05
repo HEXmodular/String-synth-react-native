@@ -1,3 +1,4 @@
+import { useOutputLevel } from "@/audio/AudioEngineProvider";
 import { useSynthSettings } from "@/synth/SynthSettingsProvider";
 import BowXyPad from "@/components/bow-controls/BowXyPad";
 import VerticalFader from "@/components/bow-controls/VerticalFader";
@@ -12,6 +13,8 @@ import {
   DELAY_FEEDBACK_MIN,
   DELAY_TIME_MAX,
   DELAY_TIME_MIN,
+  BREATH_MAX,
+  BREATH_MIN,
   FORCE_MAX,
   FORCE_MIN,
   PREDELAY_MAX,
@@ -69,6 +72,7 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
       toggleChorusNoiseMod,
       toggleAutoAttack,
     } = useSynthSettings();
+    const outputLevel = useOutputLevel();
 
     const autoAttackRef = useRef(values.autoAttack);
     const lastPressAtRef = useRef<number | null>(null);
@@ -131,10 +135,10 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
     return (
       <View className="min-h-0 flex-1 flex-row gap-4 px-3 py-2">
         <BowXyPad
-          yLabel="Speed · Y"
+          yLabel="Breath · Y"
           yIcon="speed"
-          y={{ value: values.speed, min: 0, max: 1 }}
-          xLabel="Pressure · X"
+          y={{ value: values.speed, min: BREATH_MIN, max: BREATH_MAX }}
+          xLabel="Lips · X"
           xIcon="compress"
           x={{ value: values.pressure, min: FORCE_MIN, max: FORCE_MAX }}
           disabled={disabled}
@@ -290,6 +294,7 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
             value={values.volume}
             min={0}
             max={1}
+            meterLevel={outputLevel}
             disabled={disabled}
             onChange={(value) => setParam("volume", value)}
           />

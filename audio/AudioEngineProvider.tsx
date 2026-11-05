@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useSyncExternalStore,
   type ComponentType,
   type ReactNode,
   type RefObject,
@@ -45,6 +46,10 @@ type EngineHost = Window & {
   setBowVelocityAttack?: (value: number) => void;
   setBowVelocityRelease?: (value: number) => void;
   setMasterVolume?: (value: number) => void;
+  getOutputLevel?: () => number;
+  __brassOutputLevel?: number;
+  getCpuLoad?: () => number;
+  __brassCpuLoad?: number;
   setChorusLevel?: (value: number) => void;
   setChorusRate?: (value: number) => void;
   setChorusNoiseMod?: (enabled: number) => void;
@@ -56,6 +61,66 @@ type EngineHost = Window & {
   setPredelay?: (value: number) => void;
   setReverbLevel?: (value: number) => void;
 };
+
+let outputLevelSnapshot = 0;
+const outputLevelListeners = new Set<() => void>();
+
+function publishOutputLevelSnapshot(value: number) {
+  const next = Math.round(Math.min(1, Math.max(0, value)) * 1000) / 1000;
+  if (next === outputLevelSnapshot) {
+    return;
+  }
+  outputLevelSnapshot = next;
+  outputLevelListeners.forEach((listener) => listener());
+}
+
+function subscribeOutputLevel(onStoreChange: () => void) {
+  outputLevelListeners.add(onStoreChange);
+  return () => {
+    outputLevelListeners.delete(onStoreChange);
+  };
+}
+
+function getOutputLevelSnapshot() {
+  return outputLevelSnapshot;
+}
+
+/** Live peak output level after master volume (0–1). */
+export function useOutputLevel() {
+  return useSyncExternalStore(
+    subscribeOutputLevel,
+    getOutputLevelSnapshot,
+    () => 0,
+  );
+}
+
+let cpuLoadSnapshot = 0;
+const cpuLoadListeners = new Set<() => void>();
+
+function publishCpuLoadSnapshot(value: number) {
+  const next = Math.round(Math.max(0, value) * 1000) / 1000;
+  if (next === cpuLoadSnapshot) {
+    return;
+  }
+  cpuLoadSnapshot = next;
+  cpuLoadListeners.forEach((listener) => listener());
+}
+
+function subscribeCpuLoad(onStoreChange: () => void) {
+  cpuLoadListeners.add(onStoreChange);
+  return () => {
+    cpuLoadListeners.delete(onStoreChange);
+  };
+}
+
+function getCpuLoadSnapshot() {
+  return cpuLoadSnapshot;
+}
+
+/** Live audio-thread render load from brass + FDN worklets (0 = idle, 1 = 100%). */
+export function useCpuLoad() {
+  return useSyncExternalStore(subscribeCpuLoad, getCpuLoadSnapshot, () => 0);
+}
 
 type AudioEngineValue = {
   resume: () => void;
@@ -644,9 +709,24 @@ export default function AudioEngineProvider({
         const message = JSON.parse(payload) as {
           type?: string;
           message?: string;
+          value?: number;
         };
         if (message.type === "ready") {
           markEngineReady();
+          return;
+        }
+        if (message.type === "level") {
+          const level = Number(message.value);
+          if (Number.isFinite(level)) {
+            publishOutputLevelSnapshot(level);
+          }
+          return;
+        }
+        if (message.type === "cpu") {
+          const load = Number(message.value);
+          if (Number.isFinite(load) && load >= 0) {
+            publishCpuLoadSnapshot(load);
+          }
           return;
         }
         if (message.type === "error" && __DEV__) {
@@ -672,8 +752,31 @@ export default function AudioEngineProvider({
       webEngine().resumeAudio?.();
     };
     window.addEventListener("pointerdown", unlock, true);
+
+    let raf = 0;
+    const pollMeters = () => {
+      raf = requestAnimationFrame(pollMeters);
+      const host = webEngine();
+      const level =
+        typeof host.getOutputLevel === "function"
+          ? host.getOutputLevel()
+          : host.__brassOutputLevel;
+      if (typeof level === "number" && Number.isFinite(level)) {
+        publishOutputLevelSnapshot(level);
+      }
+      const load =
+        typeof host.getCpuLoad === "function"
+          ? host.getCpuLoad()
+          : host.__brassCpuLoad;
+      if (typeof load === "number" && Number.isFinite(load) && load >= 0) {
+        publishCpuLoadSnapshot(load);
+      }
+    };
+    raf = requestAnimationFrame(pollMeters);
+
     return () => {
       window.removeEventListener("pointerdown", unlock, true);
+      cancelAnimationFrame(raf);
     };
   }, [flushNotes]);
 

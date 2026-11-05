@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Physical Modeling Trumpet</title>
+</head>
+<body>
+  <h1>Физическая модель трубы</h1>
+  <button id="startBtn">Включить Аудио</button>
+  <br><br>
+  
+  <label>Сила выдоха (Давление воздуха):</label>
+  <input type="range" id="breath" min="0" max="1" step="0.01" value="0">
+  <br><br>
+
+  <label>Нота (Частота Гц):</label>
+  <input type="range" id="freq" min="150" max="800" step="1" value="233"> <!-- Bb3 по умолчанию -->
+  <br><br>
+
+  <label>Натяжение губ (Амбушюр):</label>
+  <input type="range" id="tension" min="0" max="1" step="0.01" value="0.4">
+
+  <script>
+    let audioCtx;
+    let trumpetNode;
+
+    document.getElementById('startBtn').addEventListener('click', async () => {
+      if (audioCtx) return;
+
+      // Инициализируем Web Audio API
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Загружаем наш волноводный процессор
+      await audioCtx.audioWorklet.addModule('trumpet-processor.js');
+
+      // Создаем узел нашей трубы
+      trumpetNode = new AudioWorkletNode(audioCtx, 'trumpet-processor', {
+        numberOfInputs: 0,
+        numberOfOutputs: 1,
+        outputChannelCount: [1]
+      });
+
+      // Подключаем к колонкам
+      trumpetNode.connect(audioCtx.destination);
+      console.log("Труба готова к игре!");
+      
+      // Вешаем управление параметрами
+      setupControls();
+    });
+
+    function setupControls() {
+      const breathParam = trumpetNode.parameters.get('breathPressure');
+      const freqParam = trumpetNode.parameters.get('frequency');
+      const tensionParam = trumpetNode.parameters.get('lipTension');
+
+      document.getElementById('breath').addEventListener('input', (e) => {
+        // Плавное изменение давления, чтобы не было цифровых щелчков
+        breathParam.linearRampToValueAtTime(parseFloat(e.target.value), audioCtx.currentTime + 0.02);
+      });
+
+      document.getElementById('freq').addEventListener('input', (e) => {
+        freqParam.setValueAtTime(parseFloat(e.target.value), audioCtx.currentTime);
+      });
+
+      document.getElementById('tension').addEventListener('input', (e) => {
+        tensionParam.setValueAtTime(parseFloat(e.target.value), audioCtx.currentTime);
+      });
+    }
+  </script>
+</body>
+</html>

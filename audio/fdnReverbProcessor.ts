@@ -43,6 +43,32 @@ class FdnReverbProcessor extends AudioWorkletProcessor {
       this.outL[s] *= scale;
       this.outR[s] *= scale;
     }
+
+    this.cpuAccumMs = 0;
+    this.cpuAccumFrames = 0;
+    this.cpuBlocks = 0;
+    this.now =
+      typeof performance !== "undefined" && performance.now
+        ? function () {
+            return performance.now();
+          }
+        : function () {
+            return Date.now();
+          };
+  }
+
+  reportCpu(frames) {
+    this.cpuAccumFrames += frames;
+    this.cpuBlocks += 1;
+    if (this.cpuBlocks < 45) {
+      return;
+    }
+    var budgetMs = (this.cpuAccumFrames / sampleRate) * 1000;
+    var load = budgetMs > 0 ? this.cpuAccumMs / budgetMs : 0;
+    this.port.postMessage({ type: "cpu", load: load });
+    this.cpuAccumMs = 0;
+    this.cpuAccumFrames = 0;
+    this.cpuBlocks = 0;
   }
 
   process(inputs, outputs) {
@@ -52,6 +78,7 @@ class FdnReverbProcessor extends AudioWorkletProcessor {
       return true;
     }
 
+    var cpuStart = this.now();
     var outL = output[0];
     var outR = output[1] || output[0];
     var inL = input && input[0];
@@ -98,6 +125,8 @@ class FdnReverbProcessor extends AudioWorkletProcessor {
       outR[i] = right;
     }
 
+    this.cpuAccumMs += this.now() - cpuStart;
+    this.reportCpu(frames);
     return true;
   }
 }

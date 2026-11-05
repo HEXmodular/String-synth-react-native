@@ -2,6 +2,7 @@ import { useAudioEngine } from "@/audio/AudioEngineProvider";
 import BowControls, {
   type BowControlsHandle,
 } from "@/components/bow-controls/BowControls";
+import CpuLoadIndicator from "@/components/cpu-load/CpuLoadIndicator";
 import SettingsGearButton from "@/components/settings/SettingsGearButton";
 import StringKeyboard from "@/components/string-keyboard/StringKeyboard";
 import { midiToFrequency } from "@/components/string-keyboard/notes";
@@ -73,6 +74,18 @@ export default function Index() {
         paddingRight: insets.right,
       }}
     >
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          top: insets.top + 12,
+          left: insets.left + 12,
+          zIndex: 20,
+        }}
+      >
+        <CpuLoadIndicator />
+      </View>
+
       <View
         style={{
           position: "absolute",

@@ -15,6 +15,8 @@ type VerticalFaderProps = {
   min: number;
   max: number;
   disabled?: boolean;
+  /** Live meter level (0–1) drawn as a horizontal line on the track. */
+  meterLevel?: number;
   /** When set, the label row becomes a toggle; independent of track `disabled`. */
   onLabelPress?: () => void;
   labelDisabled?: boolean;
@@ -29,13 +31,14 @@ export default function VerticalFader({
   min,
   max,
   disabled = false,
+  meterLevel,
   onLabelPress,
   labelDisabled = false,
   labelSelected = false,
   onChange,
 }: VerticalFaderProps) {
   const trackHeightRef = useRef(0);
-  const [, setTrackHeight] = useState(0);
+  const [trackHeight, setTrackHeight] = useState(0);
   const disabledRef = useRef(disabled);
   const onChangeRef = useRef(onChange);
   const minRef = useRef(min);
@@ -94,6 +97,10 @@ export default function VerticalFader({
   const clamped = Math.min(max, Math.max(min, value));
   const fillRatio =
     span > 0 ? Math.min(1, Math.max(0, (clamped - min) / span)) : 0;
+  const meterRatio =
+    meterLevel == null
+      ? null
+      : Math.min(1, Math.max(0, Number.isFinite(meterLevel) ? meterLevel : 0));
   const fadeContainer = onLabelPress ? labelDisabled : disabled;
   const fadeTrackOnly = Boolean(onLabelPress) && disabled && !labelDisabled;
   const accent = disabled ? "#f4f6fa55" : "#f4f6fa";
@@ -142,6 +149,20 @@ export default function VerticalFader({
                 backgroundColor: "#ea7a53",
               }}
             />
+            {meterRatio != null && trackHeight > 0 ? (
+              <View
+                pointerEvents="none"
+                style={{
+                  position: "absolute",
+                  left: 4,
+                  right: 4,
+                  bottom: Math.max(0, meterRatio * trackHeight - 1),
+                  height: 2,
+                  borderRadius: 1,
+                  backgroundColor: "#f4f6fa",
+                }}
+              />
+            ) : null}
           </View>
         </GestureDetector>
       </View>

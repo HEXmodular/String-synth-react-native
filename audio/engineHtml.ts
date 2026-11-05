@@ -1,4 +1,4 @@
-import { bowedStringProcessorSource } from "@/audio/bowedStringProcessor";
+import { brassProcessorSource } from "@/audio/brassProcessor";
 import { fdnReverbProcessorSource } from "@/audio/fdnReverbProcessor";
 
 /** FDN delay-line count: 4 or 8. */
@@ -6,7 +6,7 @@ const FDN_LINES = 8;
 
 export function createEngineScript() {
   const processorSource = JSON.stringify(
-    bowedStringProcessorSource + "\n" + fdnReverbProcessorSource,
+    brassProcessorSource + "\n" + fdnReverbProcessorSource,
   );
   const fdnLines = FDN_LINES;
 
@@ -25,6 +25,12 @@ export function createEngineScript() {
     window.setBowVelocityAttack = function () {};
     window.setBowVelocityRelease = function () {};
     window.setMasterVolume = function () {};
+    window.getOutputLevel = function () {
+      return 0;
+    };
+    window.getCpuLoad = function () {
+      return 0;
+    };
     window.setChorusLevel = function () {};
     window.setChorusRate = function () {};
     window.setChorusNoiseMod = function () {};
@@ -52,6 +58,14 @@ export function createEngineScript() {
   var PREDELAY_LFO_AMP = 0.005;
   var mixer = null;
   var master = null;
+  var outputAnalyser = null;
+  var outputLevel = 0;
+  var outputMeterBuffer = null;
+  var outputMeterRaf = 0;
+  var outputMeterLastPost = 0;
+  var cpuLoad = 0;
+  var fdnCpuLoad = 0;
+  var cpuMeterLastPost = 0;
   var chorusDelayL = null;
   var chorusDelayR = null;
   var chorusLfo = null;
@@ -72,8 +86,8 @@ export function createEngineScript() {
   var voices = [];
   var ready = false;
   var pending = [];
-  var bowVelocity = 0.134;
-  var bowForce = 4.3;
+  var bowVelocity = 1;
+  var bowForce = 0.5;
   var vibratoIntensity = 0.01;
   var vibratoRate = 1.03;
   var velocityAttack = 0.08;
@@ -130,29 +144,42 @@ export function createEngineScript() {
   }
 
   function createVoice() {
-    var stringNode = new AudioWorkletNode(audioCtx, "bowed-string-processor");
+    var brassNode = new AudioWorkletNode(audioCtx, "brass-processor");
     var amp = audioCtx.createGain();
     var now = audioCtx.currentTime;
     amp.gain.setValueAtTime(0, now);
-    var velocity = stringNode.parameters.get("bowVelocity");
-    var vibrato = stringNode.parameters.get("vibratoDepth");
-    var vibratoRateParam = stringNode.parameters.get("vibratoRate");
+    var velocity = brassNode.parameters.get("bowVelocity");
+    var vibrato = brassNode.parameters.get("vibratoDepth");
+    var vibratoRateParam = brassNode.parameters.get("vibratoRate");
+    var attackTrigger = brassNode.parameters.get("attackTrigger");
     velocity.setValueAtTime(0, now);
     vibrato.setValueAtTime(0, now);
     vibratoRateParam.setValueAtTime(vibratoRate, now);
-    stringNode.connect(amp);
+    attackTrigger.setValueAtTime(0, now);
+    brassNode.connect(amp);
     amp.connect(mixer);
-    return {
-      frequency: stringNode.parameters.get("frequency"),
-      force: stringNode.parameters.get("bowForce"),
+    var voice = {
+      frequency: brassNode.parameters.get("frequency"),
+      force: brassNode.parameters.get("bowForce"),
       velocity: velocity,
       vibrato: vibrato,
       vibratoRate: vibratoRateParam,
+      attackTrigger: attackTrigger,
       amp: amp,
       noteId: null,
       active: false,
       startedAt: 0,
+      cpuLoad: 0,
     };
+    brassNode.port.onmessage = function (event) {
+      var data = event && event.data;
+      if (!data || data.type !== "cpu") {
+        return;
+      }
+      voice.cpuLoad = finite(data.load, 0);
+      publishCpuLoad();
+    };
+    return voice;
   }
 
   function findActive(noteId) {
@@ -178,7 +205,7 @@ export function createEngineScript() {
       return;
     }
 
-    // Keep amp open slightly past bow stop so free string decay stays audible.
+    // Keep amp open briefly after breath stops so bore ring-down stays audible.
     var ampRelease = releaseTime + 0.12;
     voice.amp.gain.setValueAtTime(gainNow, now);
     voice.amp.gain.exponentialRampToValueAtTime(0.001, now + ampRelease);
@@ -222,6 +249,7 @@ export function createEngineScript() {
     voice.velocity.cancelScheduledValues(now);
     voice.vibrato.cancelScheduledValues(now);
     voice.vibratoRate.cancelScheduledValues(now);
+    voice.attackTrigger.cancelScheduledValues(now);
     voice.amp.gain.cancelScheduledValues(now);
 
     voice.frequency.setValueAtTime(freq, now);
@@ -230,6 +258,9 @@ export function createEngineScript() {
     voice.vibratoRate.setValueAtTime(vibratoRate, now);
     voice.velocity.setValueAtTime(0, now);
     voice.velocity.linearRampToValueAtTime(bowVelocity, now + velocityAttack);
+    // Rising edge starts the physical attack transient in the worklet.
+    voice.attackTrigger.setValueAtTime(0, now);
+    voice.attackTrigger.setValueAtTime(1, now + 0.001);
     voice.amp.gain.setValueAtTime(0, now);
     voice.amp.gain.linearRampToValueAtTime(0.22, now + 0.05);
   }
@@ -237,12 +268,12 @@ export function createEngineScript() {
   window.resumeAudio = resume;
 
   window.setBowVelocity = function (value) {
-    bowVelocity = clamp(finite(value, bowVelocity), 0, 1);
+    bowVelocity = clamp(finite(value, bowVelocity), 0.5, 1.5);
     applyBowToActive();
   };
 
   window.setBowForce = function (value) {
-    bowForce = clamp(finite(value, bowForce), 0.1, 5);
+    bowForce = clamp(finite(value, bowForce), 0, 1);
     applyBowToActive();
   };
 
@@ -271,6 +302,92 @@ export function createEngineScript() {
     }
     master.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
   };
+
+  window.getOutputLevel = function () {
+    return outputLevel;
+  };
+
+  window.getCpuLoad = function () {
+    return cpuLoad;
+  };
+
+  function publishCpuLoad() {
+    var total = fdnCpuLoad;
+    for (var vi = 0; vi < voices.length; vi++) {
+      total += voices[vi].cpuLoad || 0;
+    }
+    if (total < 0) {
+      total = 0;
+    }
+    cpuLoad = total;
+    window.__brassCpuLoad = total;
+    if (!(window.ReactNativeWebView && window.ReactNativeWebView.postMessage)) {
+      return;
+    }
+    var now =
+      typeof performance !== "undefined" && performance.now
+        ? performance.now()
+        : Date.now();
+    if (now - cpuMeterLastPost < 100) {
+      return;
+    }
+    cpuMeterLastPost = now;
+    window.ReactNativeWebView.postMessage(
+      JSON.stringify({ type: "cpu", value: total }),
+    );
+  }
+
+  function publishOutputLevel(level) {
+    outputLevel = level;
+    window.__brassOutputLevel = level;
+    if (!(window.ReactNativeWebView && window.ReactNativeWebView.postMessage)) {
+      return;
+    }
+    var now =
+      typeof performance !== "undefined" && performance.now
+        ? performance.now()
+        : Date.now();
+    if (now - outputMeterLastPost < 33) {
+      return;
+    }
+    outputMeterLastPost = now;
+    window.ReactNativeWebView.postMessage(
+      JSON.stringify({ type: "level", value: level }),
+    );
+  }
+
+  function tickOutputMeter() {
+    outputMeterRaf = requestAnimationFrame(tickOutputMeter);
+    if (!outputAnalyser || !outputMeterBuffer) {
+      return;
+    }
+
+    outputAnalyser.getFloatTimeDomainData(outputMeterBuffer);
+    var peak = 0;
+    for (var i = 0; i < outputMeterBuffer.length; i++) {
+      var sample = outputMeterBuffer[i];
+      var abs = sample < 0 ? -sample : sample;
+      if (abs > peak) {
+        peak = abs;
+      }
+    }
+
+    // Instant attack, smooth release for a readable VU-style needle.
+    // Display gain compensates for the brass processor's ~0.25 output scale.
+    var scaled = peak * 3;
+    var next = scaled > outputLevel ? scaled : outputLevel * 0.86;
+    if (next < 0.001) {
+      next = 0;
+    }
+    publishOutputLevel(clamp(next, 0, 1));
+  }
+
+  function startOutputMeter() {
+    if (outputMeterRaf) {
+      return;
+    }
+    outputMeterRaf = requestAnimationFrame(tickOutputMeter);
+  }
 
   window.setChorusLevel = function (value) {
     chorusLevel = clamp(finite(value, chorusLevel), 0, 1);
@@ -449,12 +566,17 @@ export function createEngineScript() {
 
       mixer = audioCtx.createGain();
       var bodyFilter = audioCtx.createBiquadFilter();
-      bodyFilter.type = "bandpass";
-      bodyFilter.frequency.value = 1200;
-      bodyFilter.Q.value = 1.0;
+      bodyFilter.type = "lowpass";
+      bodyFilter.frequency.value = 4500;
+      bodyFilter.Q.value = 0.7;
 
       master = audioCtx.createGain();
       master.gain.setValueAtTime(masterVolume, audioCtx.currentTime);
+
+      outputAnalyser = audioCtx.createAnalyser();
+      outputAnalyser.fftSize = 256;
+      outputAnalyser.smoothingTimeConstant = 0;
+      outputMeterBuffer = new Float32Array(outputAnalyser.fftSize);
 
       // Stereo chorus: dual DelayNodes modulated by opposite-phase LFOs
       var chorusOut = audioCtx.createGain();
@@ -553,6 +675,14 @@ export function createEngineScript() {
         channelCountMode: "explicit",
         processorOptions: { lines: FDN_LINES },
       });
+      fdn.port.onmessage = function (event) {
+        var data = event && event.data;
+        if (!data || data.type !== "cpu") {
+          return;
+        }
+        fdnCpuLoad = finite(data.load, 0);
+        publishCpuLoad();
+      };
 
       reverbWet = audioCtx.createGain();
       reverbWet.gain.setValueAtTime(reverbLevel, audioCtx.currentTime);
@@ -580,10 +710,12 @@ export function createEngineScript() {
       predelay.connect(fdn);
       fdn.connect(reverbWet);
       reverbWet.connect(master);
-      master.connect(audioCtx.destination);
+      master.connect(outputAnalyser);
+      outputAnalyser.connect(audioCtx.destination);
 
       ready = true;
       flushPending();
+      startOutputMeter();
       if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: "ready" }));
       }
@@ -606,6 +738,12 @@ export function createEngineScript() {
       window.setBowVelocityAttack = function () {};
       window.setBowVelocityRelease = function () {};
       window.setMasterVolume = function () {};
+      window.getOutputLevel = function () {
+        return 0;
+      };
+      window.getCpuLoad = function () {
+        return 0;
+      };
       window.setChorusLevel = function () {};
       window.setChorusRate = function () {};
       window.setChorusNoiseMod = function () {};

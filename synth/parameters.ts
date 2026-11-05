@@ -1,5 +1,7 @@
-export const FORCE_MIN = 0.1;
-export const FORCE_MAX = 5;
+export const FORCE_MIN = 0;
+export const FORCE_MAX = 1;
+export const BREATH_MIN = 0.5;
+export const BREATH_MAX = 1.5;
 export const VIBRATO_RATE_MIN = 1;
 export const VIBRATO_RATE_MAX = 10;
 export const TIME_MIN = 0.01;
@@ -73,8 +75,8 @@ export type ContinuousParamDef = {
 };
 
 export const CONTINUOUS_PARAMS: readonly ContinuousParamDef[] = [
-  { id: "speed", label: "Speed", min: 0, max: 1 },
-  { id: "pressure", label: "Pressure", min: FORCE_MIN, max: FORCE_MAX },
+  { id: "speed", label: "Breath", min: BREATH_MIN, max: BREATH_MAX },
+  { id: "pressure", label: "Lips", min: FORCE_MIN, max: FORCE_MAX },
   { id: "vibrato", label: "Vibrato", min: 0, max: 1 },
   {
     id: "vibratoRate",
@@ -117,8 +119,8 @@ export const CONTINUOUS_PARAMS: readonly ContinuousParamDef[] = [
 ] as const;
 
 export const DEFAULT_PARAM_VALUES: SynthParamValues = {
-  speed: 0.134,
-  pressure: 0.8,
+  speed: 1,
+  pressure: 0.5,
   vibrato: 0.01,
   vibratoRate: 1.03,
   attack: 0.08,
