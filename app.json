@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "landscape",
     "icon": "./assets/images/icon.png",
-    "scheme": "string",
+    "scheme": "brass",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#081126",
     "ios": {
@@ -20,7 +20,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.ejji.String"
+      "package": "com.ejji.Brass"
     },
     "web": {
       "output": "static",
