@@ -31,6 +31,8 @@ export type ContinuousParamId =
   | "vibrato"
   | "vibratoRate"
   | "attack"
+  | "decay"
+  | "sustain"
   | "release"
   | "chorus"
   | "chorusRate"
@@ -49,6 +51,8 @@ export type SynthParamValues = {
   vibrato: number;
   vibratoRate: number;
   attack: number;
+  decay: number;
+  sustain: number;
   release: number;
   chorus: number;
   chorusRate: number;
@@ -85,6 +89,8 @@ export const CONTINUOUS_PARAMS: readonly ContinuousParamDef[] = [
     max: VIBRATO_RATE_MAX,
   },
   { id: "attack", label: "Attack", min: TIME_MIN, max: TIME_MAX },
+  { id: "decay", label: "Decay", min: TIME_MIN, max: TIME_MAX },
+  { id: "sustain", label: "Sustain", min: 0, max: 1 },
   { id: "release", label: "Release", min: TIME_MIN, max: TIME_MAX },
   { id: "chorus", label: "Chorus", min: 0, max: 1 },
   {
@@ -124,6 +130,8 @@ export const DEFAULT_PARAM_VALUES: SynthParamValues = {
   vibrato: 0.01,
   vibratoRate: 1.03,
   attack: 0.08,
+  decay: 0.15,
+  sustain: 1,
   release: 0.1,
   chorus: 0.7,
   chorusRate: 1.5,

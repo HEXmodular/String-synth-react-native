@@ -49,6 +49,8 @@ type EngineHost = Window & {
   setVibratoIntensity?: (value: number) => void;
   setVibratoRate?: (value: number) => void;
   setBowVelocityAttack?: (value: number) => void;
+  setBowVelocityDecay?: (value: number) => void;
+  setBowVelocitySustain?: (value: number) => void;
   setBowVelocityRelease?: (value: number) => void;
   setMasterVolume?: (value: number) => void;
   getOutputLevel?: () => number;
@@ -137,6 +139,8 @@ type AudioEngineValue = {
   setVibratoIntensity: (value: number) => void;
   setVibratoRate: (value: number) => void;
   setBowVelocityAttack: (value: number) => void;
+  setBowVelocityDecay: (value: number) => void;
+  setBowVelocitySustain: (value: number) => void;
   setBowVelocityRelease: (value: number) => void;
   setMasterVolume: (value: number) => void;
   setChorusLevel: (value: number) => void;
@@ -288,6 +292,28 @@ export default function AudioEngineProvider({
 
     webViewRef.current?.injectJavaScript(
       `window.setBowVelocityAttack(${value}); true;`,
+    );
+  }, []);
+
+  const publishBowVelocityDecay = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setBowVelocityDecay?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setBowVelocityDecay(${value}); true;`,
+    );
+  }, []);
+
+  const publishBowVelocitySustain = useCallback((value: number) => {
+    if (Platform.OS === "web") {
+      webEngine().setBowVelocitySustain?.(value);
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(
+      `window.setBowVelocitySustain(${value}); true;`,
     );
   }, []);
 
@@ -539,6 +565,30 @@ export default function AudioEngineProvider({
       publishBowVelocityAttack(next);
     },
     [publishBowVelocityAttack],
+  );
+
+  const setBowVelocityDecay = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishBowVelocityDecay(next);
+    },
+    [publishBowVelocityDecay],
+  );
+
+  const setBowVelocitySustain = useCallback(
+    (value: number) => {
+      const next = finiteNumber(value);
+      if (next == null) {
+        return;
+      }
+
+      publishBowVelocitySustain(next);
+    },
+    [publishBowVelocitySustain],
   );
 
   const setBowVelocityRelease = useCallback(
@@ -808,6 +858,8 @@ export default function AudioEngineProvider({
       setVibratoIntensity,
       setVibratoRate,
       setBowVelocityAttack,
+      setBowVelocityDecay,
+      setBowVelocitySustain,
       setBowVelocityRelease,
       setMasterVolume,
       setChorusLevel,
@@ -831,6 +883,8 @@ export default function AudioEngineProvider({
       setVibratoIntensity,
       setVibratoRate,
       setBowVelocityAttack,
+      setBowVelocityDecay,
+      setBowVelocitySustain,
       setBowVelocityRelease,
       setMasterVolume,
       setChorusLevel,

@@ -89,6 +89,8 @@ function parseSavedParams(raw: string | null): SynthParamValues {
       vibrato: readContinuous(parsed, "vibrato"),
       vibratoRate: readContinuous(parsed, "vibratoRate"),
       attack: readContinuous(parsed, "attack"),
+      decay: readContinuous(parsed, "decay"),
+      sustain: readContinuous(parsed, "sustain"),
       release: readContinuous(parsed, "release"),
       chorus: readContinuous(parsed, "chorus"),
       chorusRate: readContinuous(parsed, "chorusRate"),

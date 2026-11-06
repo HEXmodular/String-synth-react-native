@@ -20,7 +20,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.ejji.Brass"
+      "package": "com.ejji.brasssynth"
     },
     "web": {
       "output": "static",

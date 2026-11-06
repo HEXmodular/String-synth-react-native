@@ -98,6 +98,8 @@ export default function SynthSettingsProvider({
     audio.setVibratoIntensity(next.vibrato);
     audio.setVibratoRate(next.vibratoRate);
     audio.setBowVelocityAttack(next.attack);
+    audio.setBowVelocityDecay(next.decay);
+    audio.setBowVelocitySustain(next.sustain);
     audio.setBowVelocityRelease(next.release);
     audio.setChorusLevel(next.chorus);
     audio.setChorusNoiseMod(next.chorusNoiseMod);
@@ -171,6 +173,12 @@ export default function SynthSettingsProvider({
             break;
           case "attack":
             audio.setBowVelocityAttack(value as number);
+            break;
+          case "decay":
+            audio.setBowVelocityDecay(value as number);
+            break;
+          case "sustain":
+            audio.setBowVelocitySustain(value as number);
             break;
           case "release":
             audio.setBowVelocityRelease(value as number);
@@ -321,6 +329,12 @@ export default function SynthSettingsProvider({
           break;
         case "attack":
           setParam("attack", mapped);
+          break;
+        case "decay":
+          setParam("decay", mapped);
+          break;
+        case "sustain":
+          setParam("sustain", mapped);
           break;
         case "release":
           setParam("release", mapped);

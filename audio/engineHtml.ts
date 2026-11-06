@@ -41,6 +41,8 @@ export function createEngineScript() {
     window.setVibratoIntensity = function () {};
     window.setVibratoRate = function () {};
     window.setBowVelocityAttack = function () {};
+    window.setBowVelocityDecay = function () {};
+    window.setBowVelocitySustain = function () {};
     window.setBowVelocityRelease = function () {};
     window.setMasterVolume = function () {};
     window.getOutputLevel = function () {
@@ -110,6 +112,8 @@ export function createEngineScript() {
   var vibratoIntensity = 0.01;
   var vibratoRate = 1.03;
   var velocityAttack = 0.08;
+  var velocityDecay = 0.15;
+  var velocitySustain = 1;
   var velocityRelease = 0.1;
   var masterVolume = 0.75;
   var chorusLevel = 0.7;
@@ -175,6 +179,8 @@ export function createEngineScript() {
     var vibratoRateParam = brassNode.parameters.get("vibratoRate");
     var attackTrigger = brassNode.parameters.get("attackTrigger");
     var attackTimeParam = brassNode.parameters.get("attackTime");
+    var decayTimeParam = brassNode.parameters.get("decayTime");
+    var sustainLevelParam = brassNode.parameters.get("sustainLevel");
     var releaseTrigger = brassNode.parameters.get("releaseTrigger");
     var releaseTimeParam = brassNode.parameters.get("releaseTime");
     velocity.setValueAtTime(0, now);
@@ -182,6 +188,8 @@ export function createEngineScript() {
     vibratoRateParam.setValueAtTime(vibratoRate, now);
     attackTrigger.setValueAtTime(0, now);
     attackTimeParam.setValueAtTime(velocityAttack, now);
+    decayTimeParam.setValueAtTime(velocityDecay, now);
+    sustainLevelParam.setValueAtTime(velocitySustain, now);
     releaseTrigger.setValueAtTime(0, now);
     releaseTimeParam.setValueAtTime(velocityRelease, now);
     brassNode.connect(amp);
@@ -195,6 +203,8 @@ export function createEngineScript() {
       vibratoRate: vibratoRateParam,
       attackTrigger: attackTrigger,
       attackTime: attackTimeParam,
+      decayTime: decayTimeParam,
+      sustainLevel: sustainLevelParam,
       releaseTrigger: releaseTrigger,
       releaseTime: releaseTimeParam,
       amp: amp,
@@ -236,9 +246,7 @@ export function createEngineScript() {
     voice.releaseTime.cancelScheduledValues(now);
     voice.amp.gain.cancelScheduledValues(now);
 
-    // Keep breath + amp open for the full Release; worklet releaseGain 1→0
-    // is the audible envelope (breath held so the bore keeps speaking).
-    voice.velocity.setValueAtTime(breathStart, now);
+    // Worklet ramps breath to 0. Amp stays open so Release is not a volume fade.
     voice.velocity.setValueAtTime(0, now + releaseTime + 0.01);
     voice.releaseTime.setValueAtTime(releaseTime, now);
     voice.releaseTrigger.setValueAtTime(0, now);
@@ -251,7 +259,7 @@ export function createEngineScript() {
 
     voice.amp.gain.setValueAtTime(0.22, now);
     voice.amp.gain.setValueAtTime(0.22, now + releaseTime);
-    voice.amp.gain.linearRampToValueAtTime(0.0001, now + releaseTime + 0.05);
+    voice.amp.gain.linearRampToValueAtTime(0.0001, now + releaseTime + 0.02);
   }
 
   function allocVoice() {
@@ -296,6 +304,8 @@ export function createEngineScript() {
     voice.vibratoRate.cancelScheduledValues(now);
     voice.attackTrigger.cancelScheduledValues(now);
     voice.attackTime.cancelScheduledValues(now);
+    voice.decayTime.cancelScheduledValues(now);
+    voice.sustainLevel.cancelScheduledValues(now);
     voice.releaseTrigger.cancelScheduledValues(now);
     voice.releaseTime.cancelScheduledValues(now);
     voice.amp.gain.cancelScheduledValues(now);
@@ -305,12 +315,17 @@ export function createEngineScript() {
     voice.vibrato.setValueAtTime(vibratoIntensity, now);
     voice.vibratoRate.setValueAtTime(vibratoRate, now);
     var attackTime = Math.max(0.01, velocityAttack);
+    var decayTime = Math.max(0.01, velocityDecay);
+    var sustainLevel = clamp(velocitySustain, 0, 1);
     var breathTarget = bowVelocity < 0.5 ? 0.5 : bowVelocity;
     voice.releaseUntil = 0;
     voice.attackUntil = now + attackTime;
-    // Breath AudioParam holds the sustain target; worklet ramps 0.5 → target.
+    // Breath AudioParam is the peak. The worklet ramps breath 0 → peak,
+    // then toward sustain × peak, and down to 0 on release.
     voice.velocity.setValueAtTime(breathTarget, now);
     voice.attackTime.setValueAtTime(attackTime, now);
+    voice.decayTime.setValueAtTime(decayTime, now);
+    voice.sustainLevel.setValueAtTime(sustainLevel, now);
     // Rising edge backup (port message is authoritative for timing/target).
     voice.attackTrigger.setValueAtTime(0, now);
     voice.attackTrigger.setValueAtTime(1, now + 0.02);
@@ -318,10 +333,11 @@ export function createEngineScript() {
       type: "attack",
       attackTime: attackTime,
       breathTarget: breathTarget,
+      decayTime: decayTime,
+      sustain: sustainLevel,
     });
-    // Amp follows Attack so long ramps are not masked by a 50 ms open.
-    voice.amp.gain.setValueAtTime(0.0001, now);
-    voice.amp.gain.linearRampToValueAtTime(0.22, now + attackTime);
+    // Fixed voice gain. Attack shapes breath, not this amp.
+    voice.amp.gain.setValueAtTime(0.22, now);
   }
 
   window.resumeAudio = resume;
@@ -354,6 +370,28 @@ export function createEngineScript() {
     var now = audioCtx.currentTime;
     for (var i = 0; i < voices.length; i++) {
       voices[i].attackTime.setValueAtTime(velocityAttack, now);
+    }
+  };
+
+  window.setBowVelocityDecay = function (value) {
+    velocityDecay = clamp(finite(value, velocityDecay), 0.01, 1);
+    if (!ready) {
+      return;
+    }
+    var now = audioCtx.currentTime;
+    for (var i = 0; i < voices.length; i++) {
+      voices[i].decayTime.setValueAtTime(velocityDecay, now);
+    }
+  };
+
+  window.setBowVelocitySustain = function (value) {
+    velocitySustain = clamp(finite(value, velocitySustain), 0, 1);
+    if (!ready) {
+      return;
+    }
+    var now = audioCtx.currentTime;
+    for (var i = 0; i < voices.length; i++) {
+      voices[i].sustainLevel.setValueAtTime(velocitySustain, now);
     }
   };
 
@@ -809,6 +847,8 @@ export function createEngineScript() {
       window.setVibratoIntensity = function () {};
       window.setVibratoRate = function () {};
       window.setBowVelocityAttack = function () {};
+      window.setBowVelocityDecay = function () {};
+      window.setBowVelocitySustain = function () {};
       window.setBowVelocityRelease = function () {};
       window.setMasterVolume = function () {};
       window.getOutputLevel = function () {

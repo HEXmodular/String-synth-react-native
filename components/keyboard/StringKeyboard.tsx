@@ -1,6 +1,6 @@
-import FoldButton from "@/components/string-keyboard/FoldButton";
-import HoldButton from "@/components/string-keyboard/HoldButton";
-import ShiftButton from "@/components/string-keyboard/ShiftButton";
+import FoldButton from "@/components/keyboard/FoldButton";
+import HoldButton from "@/components/keyboard/HoldButton";
+import ShiftButton from "@/components/keyboard/ShiftButton";
 import {
   cellAtPoint,
   cellMidi,
@@ -12,7 +12,7 @@ import {
   rowOffsetLimits,
   soundingChanges,
   type KeyboardNote,
-} from "@/components/string-keyboard/notes";
+} from "@/components/keyboard/notes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Pressable,

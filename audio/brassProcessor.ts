@@ -1,9 +1,10 @@
 /**
  * Trumpet waveguide: bore delay + nonlinear lip valve.
  *
- * Attack: ramps breath floor → target; output level follows breath.
- * Release: sample-accurate releaseGain 1 → 0 over releaseTime while breath
- * holds (bore keeps speaking). Engine amp stays open for the same window.
+ * Attack, decay, sustain, and release shape breath only. Loudness follows
+ * that pressure through the bore; envGain is just the note gate.
+ * Attack: breath 0 → peak. Decay: peak → sustain × peak. Sustain holds that
+ * breath while the note is down. Release: breath falls to 0.
  */
 export const brassProcessorSource = `
 class BrassProcessor extends AudioWorkletProcessor {
@@ -16,6 +17,8 @@ class BrassProcessor extends AudioWorkletProcessor {
       { name: 'vibratoRate', defaultValue: 1.03, minValue: 1, maxValue: 10, automationRate: 'a-rate' },
       { name: 'attackTrigger', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
       { name: 'attackTime', defaultValue: 0.08, minValue: 0.01, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'decayTime', defaultValue: 0.15, minValue: 0.01, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'sustainLevel', defaultValue: 1, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
       { name: 'releaseTrigger', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
       { name: 'releaseTime', defaultValue: 0.1, minValue: 0.01, maxValue: 1, automationRate: 'k-rate' },
     ];
@@ -49,6 +52,13 @@ class BrassProcessor extends AudioWorkletProcessor {
     this.breathReleaseStart = 0;
     this.prevReleaseTrigger = 0;
     this.releaseGain = 0;
+    this.isBreathDecaying = false;
+    this.isBreathHolding = false;
+    this.breathDecayPhase = 0;
+    this.breathDecayStart = 0;
+    this.breathDecayDurationSamples = sampleRate * 0.15;
+    this.decayTimeSeconds = 0.15;
+    this.sustainLevel = 1;
     this.cpuAccumMs = 0;
     this.cpuAccumFrames = 0;
     this.cpuBlocks = 0;
@@ -75,6 +85,14 @@ class BrassProcessor extends AudioWorkletProcessor {
         if (!(target >= 0)) target = self.breathFloor;
         if (target > 1.5) target = 1.5;
         if (target < self.breathFloor) target = self.breathFloor;
+        var decaySecs = Number(data.decayTime);
+        if (!(decaySecs >= 0.01)) decaySecs = 0.15;
+        if (decaySecs > 1) decaySecs = 1;
+        var sustain = Number(data.sustain);
+        if (!(sustain >= 0)) sustain = 1;
+        if (sustain > 1) sustain = 1;
+        self.decayTimeSeconds = decaySecs;
+        self.sustainLevel = sustain;
         self.startBreathAttack(attackSecs, target);
         return;
       }
@@ -90,6 +108,8 @@ class BrassProcessor extends AudioWorkletProcessor {
 
   startBreathAttack(secs, target) {
     this.isBreathReleasing = false;
+    this.isBreathDecaying = false;
+    this.isBreathHolding = false;
     this.releaseGain = 1;
     this.isBreathAttacking = true;
     this.breathAttackPhase = 0;
@@ -100,13 +120,37 @@ class BrassProcessor extends AudioWorkletProcessor {
     this.prevAttackTrigger = 0;
   }
 
+  beginBreathDecay(fromBreath) {
+    this.isBreathHolding = false;
+    this.isBreathDecaying = true;
+    this.breathDecayPhase = 0;
+    var from = fromBreath;
+    if (!(from >= 0)) from = 0;
+    if (from > 1.5) from = 1.5;
+    this.breathDecayStart = from;
+    var secs = this.decayTimeSeconds;
+    if (!(secs >= 0.01)) secs = 0.15;
+    if (secs > 1) secs = 1;
+    this.breathDecayDurationSamples = Math.max(1, secs * sampleRate);
+  }
+
+  sustainBreath(peak) {
+    var level = this.sustainLevel;
+    if (!(level >= 0)) level = 1;
+    else if (level > 1) level = 1;
+    var top = peak;
+    if (!(top >= 0)) top = 0;
+    else if (top > 1.5) top = 1.5;
+    return top * level;
+  }
+
   startBreathRelease(secs, fromHint) {
     this.isBreathAttacking = false;
+    this.isBreathDecaying = false;
+    this.isBreathHolding = false;
     this.isAttacking = false;
     var from = this.previousBreath;
-    if (!(from > 0.05)) {
-      from = fromHint > 0 ? fromHint : this.breathFloor;
-    }
+    if (!(from >= 0)) from = fromHint > 0 ? fromHint : 0;
     if (from < 0) from = 0;
     if (from > 1.5) from = 1.5;
     this.isBreathReleasing = true;
@@ -166,6 +210,14 @@ class BrassProcessor extends AudioWorkletProcessor {
     let releaseTimeVal = parameters.releaseTime[0];
     if (!(releaseTimeVal >= 0.01)) releaseTimeVal = 0.1;
     else if (releaseTimeVal > 1) releaseTimeVal = 1;
+    let decayTimeVal = parameters.decayTime[0];
+    if (!(decayTimeVal >= 0.01)) decayTimeVal = 0.15;
+    else if (decayTimeVal > 1) decayTimeVal = 1;
+    this.decayTimeSeconds = decayTimeVal;
+    let sustainVal = parameters.sustainLevel[0];
+    if (!(sustainVal >= 0)) sustainVal = 1;
+    else if (sustainVal > 1) sustainVal = 1;
+    this.sustainLevel = sustainVal;
 
     const freqARate = freqParam.length > 1;
     const lipARate = lipParam.length > 1;
@@ -253,15 +305,10 @@ class BrassProcessor extends AudioWorkletProcessor {
       if (this.isBreathReleasing) {
         const dur = this.breathReleaseDurationSamples;
         const amount = this.breathReleasePhase / dur;
-        // Hold breath so the bore keeps speaking for the full Release.
-        breath = this.breathReleaseStart;
-        // Optional mild darkening toward floor (timbre only).
-        const darkened =
-          this.breathReleaseStart +
-          (breathFloor - this.breathReleaseStart) * amount * 0.35;
-        if (darkened < breath) breath = darkened;
-        envGain = 1 - amount;
-        this.releaseGain = envGain;
+        breath = this.breathReleaseStart * (1 - amount);
+        if (breath < 0) breath = 0;
+        envGain = 1;
+        this.releaseGain = 1;
         this.breathReleasePhase++;
         if (this.breathReleasePhase >= dur) {
           this.isBreathReleasing = false;
@@ -272,15 +319,35 @@ class BrassProcessor extends AudioWorkletProcessor {
       } else if (this.isBreathAttacking) {
         const dur = this.breathAttackDurationSamples;
         const amount = this.breathAttackPhase / dur;
-        breath =
-          breathFloor + (this.breathAttackTarget - breathFloor) * amount;
+        breath = this.breathAttackTarget * amount;
+        if (breath < 0) breath = 0;
         envGain = 1;
         this.releaseGain = 1;
         this.breathAttackPhase++;
         if (this.breathAttackPhase >= dur) {
           this.isBreathAttacking = false;
           breath = this.breathAttackTarget;
+          this.beginBreathDecay(breath);
         }
+      } else if (this.isBreathDecaying) {
+        const dur = this.breathDecayDurationSamples;
+        const amount = this.breathDecayPhase / dur;
+        const held = this.sustainBreath(breathParam);
+        breath = this.breathDecayStart + (held - this.breathDecayStart) * amount;
+        if (breath < 0) breath = 0;
+        else if (breath > 1.5) breath = 1.5;
+        envGain = 1;
+        this.releaseGain = 1;
+        this.breathDecayPhase++;
+        if (this.breathDecayPhase >= dur) {
+          this.isBreathDecaying = false;
+          this.isBreathHolding = true;
+          breath = held;
+        }
+      } else if (this.isBreathHolding) {
+        breath = this.sustainBreath(breathParam);
+        envGain = 1;
+        this.releaseGain = 1;
       } else {
         breath = breathParam;
         // Gate is armed only by attack (releaseGain=1). After release ends
@@ -289,6 +356,7 @@ class BrassProcessor extends AudioWorkletProcessor {
           this.releaseGain = 0;
         }
         envGain = this.releaseGain;
+        if (!(envGain > 0)) breath = 0;
       }
 
       if (this.previousBreath < 0.0005 && breath >= 0.0005) {

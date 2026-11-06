@@ -1,11 +1,11 @@
 import { useAudioEngine } from "@/audio/AudioEngineProvider";
-import BowControls, {
-  type BowControlsHandle,
-} from "@/components/bow-controls/BowControls";
+import Controls, {
+  type ControlsHandle,
+} from "@/components/controls/Controls";
 import CpuLoadIndicator from "@/components/cpu-load/CpuLoadIndicator";
 import SettingsGearButton from "@/components/settings/SettingsGearButton";
-import StringKeyboard from "@/components/string-keyboard/StringKeyboard";
-import { midiToFrequency } from "@/components/string-keyboard/notes";
+import StringKeyboard from "@/components/keyboard/StringKeyboard";
+import { midiToFrequency } from "@/components/keyboard/notes";
 import { useSynthSettings } from "@/synth/SynthSettingsProvider";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -18,7 +18,7 @@ export default function Index() {
   const { values, registerMidiNoteHandlers } = useSynthSettings();
   const [keyboardExpanded, setKeyboardExpanded] = useState(true);
   const [midiHeld, setMidiHeld] = useState<number[]>([]);
-  const bowControlsRef = useRef<BowControlsHandle>(null);
+  const controlsRef = useRef<ControlsHandle>(null);
   const insets = useSafeAreaInsets();
 
   const handleNoteOn = useCallback(
@@ -26,7 +26,7 @@ export default function Index() {
       if (Platform.OS !== "web") {
         resume();
       }
-      bowControlsRef.current?.prepareNoteOn();
+      controlsRef.current?.prepareNoteOn();
       noteOn(midi, midiToFrequency(midi));
     },
     [noteOn, resume],
@@ -110,7 +110,7 @@ export default function Index() {
       </View>
       {!keyboardExpanded ? (
         <View style={{ flex: 1, minHeight: 0 }}>
-          <BowControls ref={bowControlsRef} />
+          <Controls ref={controlsRef} />
         </View>
       ) : null}
     </View>

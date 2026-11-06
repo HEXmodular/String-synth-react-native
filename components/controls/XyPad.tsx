@@ -13,7 +13,7 @@ type AxisConfig = {
   max: number;
 };
 
-type BowXyPadProps = {
+type XyPadProps = {
   /** Vertical axis (bottom → top). */
   y: AxisConfig;
   /** Horizontal axis (left → right). */
@@ -42,7 +42,7 @@ function ratioToValue(ratio: number, min: number, max: number) {
   return min + clamp(ratio, 0, 1) * (max - min);
 }
 
-export default function BowXyPad({
+export default function XyPad({
   y,
   x,
   yLabel,
@@ -51,7 +51,7 @@ export default function BowXyPad({
   xIcon,
   disabled = false,
   onChange,
-}: BowXyPadProps) {
+}: XyPadProps) {
   const sizeRef = useRef({ width: 0, height: 0 });
   const [size, setSize] = useState({ width: 0, height: 0 });
   const disabledRef = useRef(disabled);

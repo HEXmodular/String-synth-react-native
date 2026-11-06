@@ -1,7 +1,7 @@
 import { useOutputLevel } from "@/audio/AudioEngineProvider";
 import { useSynthSettings } from "@/synth/SynthSettingsProvider";
-import BowXyPad from "@/components/bow-controls/BowXyPad";
-import VerticalFader from "@/components/bow-controls/VerticalFader";
+import XyPad from "@/components/controls/XyPad";
+import VerticalFader from "@/components/controls/VerticalFader";
 import {
   CHORUS_DELAY_MAX,
   CHORUS_DELAY_MIN,
@@ -53,17 +53,17 @@ function attackFromIoi(ioiSeconds: number) {
   );
 }
 
-export type BowControlsHandle = {
+export type ControlsHandle = {
   /** Call before noteOn when auto-attack is on; updates attack from press timing. */
   prepareNoteOn: () => void;
 };
 
-type BowControlsProps = {
+type ControlsProps = {
   disabled?: boolean;
 };
 
-const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
-  function BowControls({ disabled = false }, ref) {
+const Controls = forwardRef<ControlsHandle, ControlsProps>(
+  function Controls({ disabled = false }, ref) {
     const {
       values,
       setParam,
@@ -134,7 +134,7 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
 
     return (
       <View className="min-h-0 flex-1 flex-row gap-4 px-3 py-2">
-        <BowXyPad
+        <XyPad
           yLabel="Breath · Y"
           yIcon="speed"
           y={{ value: values.speed, min: BREATH_MIN, max: BREATH_MAX }}
@@ -182,6 +182,24 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
             labelSelected={values.autoAttack}
             onLabelPress={handleAutoAttackToggle}
             onChange={(value) => setParam("attack", value)}
+          />
+          <VerticalFader
+            label="Decay"
+            icon="arrow-downward"
+            value={values.decay}
+            min={TIME_MIN}
+            max={TIME_MAX}
+            disabled={disabled}
+            onChange={(value) => setParam("decay", value)}
+          />
+          <VerticalFader
+            label="Sustain"
+            icon="remove"
+            value={values.sustain}
+            min={0}
+            max={1}
+            disabled={disabled}
+            onChange={(value) => setParam("sustain", value)}
           />
           <VerticalFader
             label="Release"
@@ -304,4 +322,4 @@ const BowControls = forwardRef<BowControlsHandle, BowControlsProps>(
   },
 );
 
-export default BowControls;
+export default Controls;
